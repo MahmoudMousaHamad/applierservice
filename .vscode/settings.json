@@ -1,0 +1,30 @@
+{
+  "editor.codeActionsOnSave": {
+    "source.fixAll.eslint": true
+  },
+  
+  "files.associations": {
+    ".eslintrc": "jsonc",
+    ".prettierrc": "jsonc",
+    ".eslintignore": "ignore"
+  },
+  
+  "eslint.validate": [
+    "javascript",
+    "typescript"
+  ],
+
+  "javascript.validate.enable": true,
+  "javascript.format.enable": true,
+  "typescript.format.enable": true,
+
+  "search.exclude": {
+    ".git": true,
+    ".eslintcache": true,
+    "node_modules": true,
+    "npm-debug.log.*": true,
+    "test/**/__snapshots__": true,
+    "package-lock.json": true,
+  },
+
+}
