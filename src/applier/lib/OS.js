@@ -32,6 +32,7 @@ switch (platform) {
 		throw Error("Unknown OS platform");
 }
 
+appDatatDirPath = "./tmp/";
 console.log("Target platform", targetPlatform);
 console.log("appDatatDirPath", appDatatDirPath);
 

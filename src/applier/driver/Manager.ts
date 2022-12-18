@@ -7,6 +7,7 @@
 /* eslint-disable new-cap */
 import chrome from "selenium-webdriver/chrome";
 import { exec } from "child_process";
+import unzipper from "unzipper";
 import https from "https";
 import path from "path";
 import fs from "fs";
@@ -21,7 +22,7 @@ const {
 	isWindows,
 } = OS;
 
-const versionIndex = {
+const versionIndex: {[key: number]: string} = {
 	108: "108.0.5359.71",
 	106: "106.0.5249.21",
 	105: "105.0.5195.52",
@@ -39,21 +40,6 @@ export async function getChromeMajorVersion() {
 	const chromeMajorVersion = chromeVersion.split(".")[0];
 
 	Logger.info(`Chrome major version: ${chromeMajorVersion}`);
-
-	if (Number(chromeMajorVersion) < 100) {
-		dialog.showErrorBox(
-			"Google Chrome Version Error",
-			`Unfortunately, we don't support your current version of Chrome (${chromeMajorVersion}).
-          As of now, we only support Chrome versions 100 and above. Please consider updating your
-          Google Chrome browser.`
-		);
-
-		setTimeout(() => {
-			app.exit(1);
-		}, 5000);
-
-		return false;
-	}
 
 	return chromeMajorVersion;
 }
@@ -77,26 +63,32 @@ export async function downloadChromeDriver() {
 	const file = fs.createWriteStream(
 		path.join(appDatatDirPath, "chromedriver.zip")
 	);
+	
+	await new Promise<void>((r) => {
+		https.get(fileUrl, (response) => {
+			response.pipe(file);
+	
+			Logger.info("Downloading chrome driver...");
+	
+			// after download completed close filestream
+			file.on("finish", async () => {
+				file.close();
+				Logger.info("Download of chrome driver file ended, unzipping...");
+	
+				fs.createReadStream(path.join(appDatatDirPath, "chromedriver.zip")).pipe(
+					unzipper.Extract({ path: path.join(appDatatDirPath, "chromedriver") })
+				);
+	
+				await new Promise((resolve) => setTimeout(resolve, 1000));
+	
+				fs.chmodSync(chromeDriverPath, "755");
 
-	https.get(fileUrl, (response) => {
-		response.pipe(file);
-
-		Logger.info("Downloading chrome driver...");
-
-		// after download completed close filestream
-		file.on("finish", async () => {
-			file.close();
-			Logger.info("Download of chrome driver file ended, unzipping...");
-
-			fs.createReadStream(path.join(appDatatDirPath, "chromedriver.zip")).pipe(
-				unzipper.Extract({ path: path.join(appDatatDirPath, "chromedriver") })
-			);
-
-			await new Promise((resolve) => setTimeout(resolve, 1000));
-
-			fs.chmodSync(chromeDriverPath, "755");
+				r();
+			});
+	
+			file.on("error", Logger.error);
 		});
-	});
+	}); 
 }
 
 export async function openChromeSession() {
@@ -130,12 +122,10 @@ export async function openChromeSession() {
 	exec(
 		`${chromeCommand} \
 		--remote-debugging-port=${chromeRemoteDebugPort} \
-		--disable-blink-features=AutomationControlled \
 		--user-data-dir=${userChromeDataDir} \
-		--remote-debugging-address=0.0.0.0 \
 		--user-agent="${userAgent}" \
-		--window-size=1000,1000 \
-		--headless \
+		--start-maximized \
+		--headless
 		`,
 		(error, stdout, stderr) => {
 			if (stdout) Logger.info(`stdout: ${stdout}`);
@@ -159,40 +149,69 @@ export async function attachToSession() {
 		.build();
 
 	const options = new chrome.Options();
-	options.options_.debuggerAddress = `localhost:${chromeRemoteDebugPort}`;
+	options.debuggerAddress(`localhost:${chromeRemoteDebugPort}`);
 
-	// options.addArguments([
-	// 	`--remote-debugging-port=${chromeRemoteDebugPort}`,
-	// 	`--user-data-dir=${userChromeDataDir}`,
-	// 	"--remote-debugging-address=0.0.0.0",
-	// 	`--user-agent=${userAgent}`,
-	// 	"--disable-dev-shm-usage",
-	// 	"--disable-gpu",
-	// 	"--no-sandbox",
-	// 	"--headless",
-	// ]);
 	const driver = chrome.Driver.createSession(options, service);
+	
+	driver.executeScript(`
+		Object.defineProperty(navigator, 'plugins', {
+			get: function() {
+			return [1, 2, 3, 4, 5];
+			},
+		});
+
+		const getParameter = WebGLRenderingContext.getParameter;
+		WebGLRenderingContext.prototype.getParameter = function(parameter) {
+		// UNMASKED_VENDOR_WEBGL
+		if (parameter === 37445) {
+			return 'Intel Open Source Technology Center';
+		}
+		// UNMASKED_RENDERER_WEBGL
+		if (parameter === 37446) {
+			return 'Mesa DRI Intel(R) Ivybridge Mobile ';
+		}
+
+		return getParameter(parameter);
+		};
+
+		['height', 'width'].forEach(property => {
+			// store the existing descriptor
+			const imageDescriptor = Object.getOwnPropertyDescriptor(HTMLImageElement.prototype, property);
+		  
+			// redefine the property with a patched descriptor
+			Object.defineProperty(HTMLImageElement.prototype, property, {
+			  ...imageDescriptor,
+			  get: function() {
+				// return an arbitrary non-zero dimension if the image failed to load
+				if (this.complete && this.naturalHeight == 0) {
+				  return 20;
+				}
+				// otherwise, return the actual dimension
+				return imageDescriptor.get.apply(this);
+			  },
+			});
+		  });
+
+		  // store the existing descriptor
+		  const elementDescriptor = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'offsetHeight');
+		  
+		  // redefine the property with a patched descriptor
+		  Object.defineProperty(HTMLDivElement.prototype, 'offsetHeight', {
+			...elementDescriptor,
+			get: function() {
+			  if (this.id === 'modernizr') {
+				  return 1;
+			  }
+			  return elementDescriptor.get.apply(this);
+			},
+		  });
+	`);
 
 	return driver;
 }
 
 export async function killDriverProcess() {
-	// const find = require("find-process");
 	const kill = require("kill-port");
-
-	// find("name", "chromedriver")
-	// 	.then((list) => {
-	// 		list.forEach((p) => {
-	// 			ps.kill(p.pid, (e) => {
-	// 				if (e) throw e;
-	// 				Logger.info(`The ${p.name} process has been killed`);
-	// 			});
-	// 		});
-	// 	})
-	// 	.catch((e) => {
-	// 		Logger.error(e);
-	// 	});
-
 	try {
 		await kill(chromeRemoteDebugPort, "tcp");
 	} catch (e) {

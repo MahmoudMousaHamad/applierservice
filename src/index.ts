@@ -1,11 +1,12 @@
 import express from "express";
+import axios from "axios";
 import cors from "cors";
 
 import { Logger } from "./applier/lib";
-import config from "./server/config";
+import config  from "./server/config";
 import Route from "./server/routes";
 
-const PORT = config.app.PORT;
+let userInfo: { id: string };
 const app = express();
 
 app.use(express.urlencoded({ extended: true }));
@@ -14,40 +15,38 @@ app.use(cors());
 
 app.use("/api/applier", Route);
 
-const server = app.listen(PORT, () => {
-    console.log(`🚀 Applier service started at port ${PORT}`);
+const server = app.listen(config.PORT, () => {
+    Logger.info(`🚀 Applier service started at port ${config.PORT}`);
+    Logger.info(`Main server endpoint is ${config.serverEndpoint}`);
 });
 
-server.on("questions", async ({ questions }) => {
-    try {
-        const response = await fetch("0.0.0.0:8000/api/questions", {
-            method: "POST",
-            headers: {
-                'Accept': 'application/json',
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify(questions),
-        });
+server.on("init", (info: {id: string}) => {
+    userInfo = info;
+});
 
-        console.log(await response.json());
+server.on("questions", async (questions) => {
+    try {
+        const response = await axios.post(`${config.serverEndpoint}api/questions`, {
+            questions: JSON.stringify(questions),
+            userId: userInfo.id,
+        });
+        console.log(response.status);
     } catch(e) {
-        Logger.error("Something went wrong while sending questions to the main service" + e);
+        Logger.error("Something went wrong while sending questions to the main service. \
+        Error details: " + e);
     }
 });
 
 server.on("application-submitted", async () => {
     try {
-        const response = await fetch("0.0.0.0:8000/api/application/submit", {
-            method: "POST",
-            headers: {
-                'Content-Type': 'application/json',
-                'Accept': 'application/json',
-            },
+        if (!userInfo) throw Error("User info was not initialized");
+        const response = await axios.post(`${config.serverEndpoint}api/applications/updateCount`, {
+            userId: userInfo.id,
         });
-
-        console.log(await response.json());
+        console.log(response.status);
     } catch(e) {
-        Logger.error(`Something went wrong while sending application submitted to server`);
+        Logger.error(`Something went wrong while sending application submitted to main service. 
+        Error details: ${e}`);
     }
 })
 

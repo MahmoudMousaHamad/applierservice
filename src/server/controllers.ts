@@ -1,5 +1,7 @@
 import { validationResult } from "express-validator";
 import { Request, Response } from "express";
+
+import { Logger } from "../applier/lib";
 import Applier from "../applier";
 import server from "../index";
 
@@ -16,19 +18,27 @@ const controllerTemplate = (controller: Function) => {
         try {
             await controller(req, res);
         } catch (e) {
-            console.error(e);
+            Logger.error(e);
             res.status(500).send("Error! Error details: " + e);
         }
     }
 }
 
-const start = controllerTemplate(async (req: Request, res: Response) => {
+const start = async (req: Request, res: Response) => {
     await applier.start(req.query, req.query.answers, res);
-});
+};
 
 const stop = controllerTemplate(async (req: Request, res: Response) => {
     await applier.stop(res);
 });
+
+const pause = async (req: Request, res: Response) => {
+    await applier.pause(res);
+};
+
+const resume = async (req: Request, res: Response) => {
+    await applier.resume(res);
+};
 
 const getStatus = controllerTemplate(async (req: Request, res: Response) => {
     res.status(200).json({
@@ -40,4 +50,8 @@ const submitAnswers = controllerTemplate(async (req: Request, res: Response) => 
     server.emit("answers", req.body.answers);
 });
 
-export { start, stop, getStatus, submitAnswers };
+const init = controllerTemplate(async (req: Request, res: Response) => {
+    server.emit("userInfo", req.body.userInfo);
+});
+
+export { start, stop, getStatus, submitAnswers, init, pause, resume };

@@ -13,6 +13,7 @@ import {
 	Locator,
 	Scripts,
 	Helper,
+	downloadChromeDriver,
 } from "../driver";
 
 import { Site, Status } from "./Site";

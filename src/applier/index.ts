@@ -2,7 +2,7 @@ import { Response } from "express";
 
 import { IndeedSiteCreator, LinkedInSiteCreator, Status } from "./sites";
 import { Logger, UserData } from "./lib";
-import { Driver, killDriverProcess } from "./driver";
+import { downloadChromeDriver, Driver, killDriverProcess } from "./driver";
 
 import { SingletonCategorizer } from "./lib/Categorizer";
 
@@ -20,28 +20,61 @@ class Applier {
     }
 
     async start(userData: any, answers: any, res: Response) {
-        Logger.info(`Site: ${userData?.site}`);
-		if (userData.site === "INDEED") this.driver = new Driver(this.indeed);
-		else this.driver = new Driver(this.linkedin);
+        if (this.driver.getStatus() !== Status.RUNNING) {
+            await downloadChromeDriver();
+            Logger.info(`Site: ${userData?.site}`);
+            if (userData.site === "INDEED") this.driver = new Driver(this.indeed);
+            else this.driver = new Driver(this.linkedin);
 
-		UserData.set(userData);
-		SingletonCategorizer.load(answers);
+            UserData.set(userData);
+            SingletonCategorizer.load(answers);
 
-        res.status(200).json({
-            status: Status.RUNNING,
-        });
+            res.status(200).json({
+                status: Status.RUNNING,
+            });
 
-        await this.driver.start();
+            await this.driver.start();
+        } else {
+            res.status(500).json({
+                status: Status.RUNNING,
+                error: "Applier is already running"
+            });
+        }
     }
 
     async stop(res: Response) {
-        Logger.info("Stopping applier 1");
 		await this.driver.stop();
 		await killDriverProcess();
         res.status(200).json({
             answers: JSON.stringify(SingletonCategorizer.categorizer),
             status: this.getStatus(),
         });
+    }
+
+    async pause(res: Response) {
+        if (this.driver.getStatus() === Status.RUNNING) {
+            res.status(200).json({
+                status: Status.PAUSED,
+            });
+            await this.driver.pause();
+        } else {
+            res.status(500).json({
+                error: "Pause is not possible; the applier service is not running."
+            });
+        }
+    }
+
+    async resume(res: Response) {
+        if (this.driver.getStatus() === Status.PAUSED) {
+            await this.driver.resume();
+            res.status(200).json({
+                status: this.getStatus(),
+            });
+        } else {
+            res.status(500).json({
+                error: "Resume is not possible; the applier service is not paused."
+            });
+        }
     }
 
     getStatus(): Status {
