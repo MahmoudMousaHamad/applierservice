@@ -1,10 +1,3 @@
-/* eslint-disable promise/catch-or-return */
-/* eslint-disable promise/always-return */
-/* eslint-disable no-underscore-dangle */
-/* eslint-disable no-restricted-syntax */
-/* eslint-disable promise/no-nesting */
-/* eslint-disable global-require */
-/* eslint-disable new-cap */
 import chrome from "selenium-webdriver/chrome";
 import { exec } from "child_process";
 import unzipper from "unzipper";
@@ -13,6 +6,7 @@ import path from "path";
 import fs from "fs";
 
 import { Logger, OS } from "../lib";
+import { Dialog, executablePath } from "puppeteer";
 
 const {
 	userChromeDataDir,
@@ -133,6 +127,34 @@ export async function openChromeSession() {
 			if (error) Logger.error(`exec error: ${error}`);
 		}
 	);
+}
+
+export async function launchBrowser(): Promise<void> {
+	const StealthPlugin = require('puppeteer-extra-plugin-stealth');
+	const puppeteer = require('puppeteer-extra');
+
+	const stealthPlugin = StealthPlugin();
+
+	stealthPlugin.enabledEvasions.delete('iframe.contentWindow');
+	stealthPlugin.enabledEvasions.delete('navigator.plugins');
+
+	puppeteer.use(stealthPlugin);
+
+	const browser = await puppeteer.launch({
+        executablePath: "google-chrome-stable",
+		args: [
+			"--window-size=1200,800",
+			"--no-sandbox",
+		],
+		userDataDir: userChromeDataDir,
+		// headless: false,
+    });
+	
+	const page = await browser.newPage();
+    await page.setBypassCSP(true);
+
+	globalThis.browser = browser;
+	globalThis.page = page;
 }
 
 export async function attachToSession() {

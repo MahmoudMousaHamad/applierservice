@@ -1,20 +1,10 @@
-/* eslint-disable max-classes-per-file */
-/* eslint-disable consistent-return */
-/* eslint-disable array-callback-return */
-/* eslint-disable no-plusplus */
-/* eslint-disable class-methods-use-this */
-/* eslint-disable guard-for-in */
-/* eslint-disable no-restricted-syntax */
-/* eslint-disable no-await-in-loop */
-import { By, promise, WebElement } from "selenium-webdriver";
+import { ElementHandle } from "puppeteer";
 import Natural from "natural";
 
-import { Categorizer, Logger } from "../lib";
-import { Helper } from "../driver";
-import { Site } from "../sites";
 import { SingletonCategorizer } from "../lib/Categorizer";
-
-require("chromedriver");
+import { Helper } from "../driver";
+import { Logger } from "../lib";
+import { Site } from "../sites";
 
 const SCORE_THRESHOLD = 1;
 
@@ -59,8 +49,6 @@ export class QuestionInfo {
 }
 
 class Question {
-	element: WebElement;
-
 	site: Site;
 
 	type?: QuestionTypes | null;
@@ -71,10 +59,10 @@ class Question {
 
 	tokens?: string[];
 
-	inputElement?: WebElement;
+	inputElement: ElementHandle;
 
-	constructor(element: WebElement, site: Site) {
-		this.element = element;
+	constructor(element: ElementHandle, site: Site) {
+		this.inputElement = element;
 		this.options = null;
 		this.text = null;
 		this.site = site;
@@ -82,26 +70,22 @@ class Question {
 
 	answerFunctions: { [name: string]: any } = {
 		text: async (answer: string, inputSelector: string) => {
-			const input = await this.element.findElement(By.css(inputSelector));
-			await Helper.clearInput(input);
-			await input.sendKeys(answer);
+			await Helper.clearInput(this.inputElement);
+			await Helper.type(this.inputElement, answer);
 		},
 		textarea: async (answer: string, inputSelector: string) => {
-			const input = await this.element.findElement(By.css(inputSelector));
-			await Helper.clearInput(input);
-			await input.sendKeys(answer);
+			await Helper.clearInput(this.inputElement);
+			await Helper.type(this.inputElement, answer);
 		},
 		number: async (answer: string, inputSelector: string) => {
-			const element = await this.element.findElement(By.css(inputSelector));
-			await Helper.clearInput(element);
-			await element.sendKeys(answer);
+			await Helper.clearInput(this.inputElement);
+			await Helper.type(this.inputElement, answer);
 		},
 		date: async (answer: string, inputSelector: string) => {
-			const element = await this.element.findElement(By.css(inputSelector));
-			await Helper.clearInput(element);
+			await Helper.clearInput(this.inputElement);
 			const [year, month, day] = answer.split("-");
 			[month, day, year].forEach(async (part) => {
-				await element.sendKeys(part);
+				await Helper.type(this.inputElement, part);
 			});
 		},
 		radio: async (
@@ -109,34 +93,31 @@ class Question {
 			inputSelector: string,
 			optionsSelector: string
 		) => {
-			const options = await this.element.findElements(
-				By.xpath(optionsSelector)
-			);
+			const options = await globalThis.page.$x(optionsSelector);
 			for (let i = 0; i < options.length; ++i) {
-				if (answer.includes(await options[i].getText())) {
-					await options[i].click();
+				if (answer.includes(await Helper.getElementText(options[i]))) {
+					const option = options[i] as ElementHandle<HTMLElement>;
+					await option.click();
 					return;
 				}
 			}
 			Logger.info("Radio question is falling back...");
-			await options[0].click();
+			await (options[0] as ElementHandle<HTMLElement>).click();
 		},
 		select: async (answer: string, inputSelector: string) => {
-			const element = this.element.findElement(By.css(inputSelector));
-			await element.sendKeys(answer);
+			await Helper.type(this.inputElement, answer);
 		},
 		checkbox: async (
 			answer: number | string[],
 			inputSelector: string,
 			optionsSelector: string
 		) => {
-			const options = await this.element.findElements(
-				By.xpath(optionsSelector)
-			);
-			const inputs = await this.element.findElements(By.xpath(inputSelector));
+			const options = await globalThis.page.$x(optionsSelector) as ElementHandle<HTMLElement>[];
+			const inputs = await globalThis.page.$x(inputSelector) as ElementHandle<HTMLElement>[];
 			// Uncheck any checked boxes
 			for (let i = 0; i < options.length; ++i) {
-				if (await inputs[i].isSelected()) {
+				const checked = await (await inputs[i].getProperty('checked')).jsonValue();
+				if (checked) {
 					await options[i].click();
 				}
 			}
@@ -146,9 +127,7 @@ class Question {
 			}
 			if (Array.isArray(answer)) {
 				for (let i = 0; i < options.length; ++i) {
-					if (answer.includes(await options[i].getText())) {
-						await options[i].click();
-					}
+					if (answer.includes(await Helper.getElementText(options[i]))) await options[i].click();
 				}
 				return;
 			}
@@ -268,9 +247,7 @@ class Question {
 
 	async getType(): Promise<QuestionTypes | null> {
 		for (const enumVal of Object.values(QuestionTypes)) {
-			const inputs = await this.element.findElements(
-				By.css(this.site.questionsInfo[enumVal].inputSelector.join(","))
-			);
+			const inputs = await this.inputElement.$$(this.site.questionsInfo[enumVal].inputSelector.join(",")) as ElementHandle[];
 			if (inputs.length >= 1) return enumVal;
 		}
 		return null;
@@ -281,11 +258,9 @@ class Question {
 	 */
 	async getText() {
 		if (!this.type) return null;
-		const textElement = await this.element.findElement(
-			By.css(this.site.questionsInfo[this.type].textSelector.join(","))
-		);
-		const questionText = await textElement.getText();
-		return questionText;
+		const selector = this.site.questionsInfo[this.type].textSelector.join(",");
+		const e = await this.inputElement.$(selector) as ElementHandle;
+		return await Helper.getElementText(e);
 	}
 
 	async getOptions(): Promise<any[] | null> {
@@ -298,14 +273,12 @@ class Question {
 			const { optionsSelector } = this.site.questionsInfo[this.type];
 			if (!optionsSelector) return null;
 
-			const optionsElements = await this.element.findElements(
-				By.xpath(optionsSelector)
-			);
+			const optionsElements = await globalThis.page.$x(optionsSelector);
 
-			options = await promise.map(optionsElements, async (element) => {
-				const text = await element.getText();
-				return text;
-			});
+			for (let i = 0; i < optionsElements.length; ++i) {
+				const text = await Helper.getElementText(optionsElements[i]);
+				options.push(text);
+			}
 		} catch (e) {
 			Logger.error("ERROR: Couldn't get question options");
 			return null;

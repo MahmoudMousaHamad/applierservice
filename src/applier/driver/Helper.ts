@@ -1,76 +1,78 @@
-/* eslint-disable class-methods-use-this */
-/* eslint-disable no-await-in-loop */
-import {
-	By,
-	Key,
-	Locator,
-	until,
-	WebDriver,
-	WebElement,
-} from "selenium-webdriver";
-
+import { ElementHandle } from "puppeteer";
 import Logger from "../lib/Logger";
 
-import { ScrollDown } from "./Scripts";
+export async function scroll() {
+	await globalThis.page.evaluate(async () => {
+		await new Promise<void>((resolve) => {
+            var totalHeight = 0;
+            var distance = 100;
+            var timer = setInterval(() => {
+                var scrollHeight = document.body.scrollHeight;
+                window.scrollBy(0, distance);
+                totalHeight += distance;
 
-class Helper {
-	driver: WebDriver;
+                if(totalHeight >= scrollHeight - window.innerHeight){
+                    clearInterval(timer);
+                    resolve();
+                }
+            }, 400);
+        });
+	})
+}
 
-	constructor(driver: WebDriver) {
-		this.driver = driver;
-	}
-
-	init(driver: WebDriver) {
-		this.driver = driver;
-	}
-
-	async scroll() {
-		await this.driver?.executeScript(ScrollDown);
-	}
-
-	async checkTabs() {
-		const tabs = (await this.driver?.getAllWindowHandles()) as string[];
-		if (tabs.length > 1) {
-			await this.driver?.switchTo().window(tabs[0]);
-			await this.driver?.close();
-			await this.driver?.switchTo().window(tabs[1]);
-		}
-	}
-
-	async getText(by: By): Promise<string> {
-		return (await this.driver.findElement(by)).getText();
-	}
-
-	async waitFor(selector: Locator, timeout = 10) {
-		try {
-			const el = (await this.driver?.findElement(selector)) as WebElement;
-			await this.driver?.wait(
-				until.elementIsVisible(el),
-				timeout,
-				`Couldn't find ${selector}`
-			);
-		} catch (e) {
-			Logger.error(`Could not find element ${selector}`);
-			return false;
-		}
-
-		return true;
-	}
-
-	async acceptAlert() {
-		const alert = await this.driver?.wait(until.alertIsPresent(), 2000);
-		await alert?.accept();
-	}
-
-	async clearInput(element: WebElement) {
-		const inputValueLength = (await element.getAttribute("value")).length;
-		await (
-			await element.getDriver()
-		).executeScript((e: { select: () => any }) => e.select(), element);
-		for (let i = 0; i < inputValueLength; i += 1) {
-			await element.sendKeys(Key.BACK_SPACE);
-		}
+export async function checkTabs() {
+	let pages = await globalThis.browser.pages();
+	Logger.info(`There are ${pages.length} tabs open.`);
+	if (pages.length > 1) {
+		Logger.info("Closing tab " + await pages[0].title());
+		await pages[0].close();
+		page = pages[1];
 	}
 }
 
-export default new Helper(null as unknown as WebDriver);
+export async function getText(xpath: string): Promise<string> {
+	const [e] = await page.$x(xpath);
+	return await globalThis.page.evaluate(name => name.textContent, e) as string;
+}
+
+export async function getElementText(e: ElementHandle<Node>): Promise<string> {
+	return await globalThis.page.evaluate(name => name.textContent, e) as string;
+}
+
+export async function clearInput(e: ElementHandle | string) {
+	if (e instanceof ElementHandle) {
+		await e.click({clickCount: 3});
+		await e.press('Backspace'); 
+	} else if (typeof e === 'string' || e as any instanceof String) {
+		await globalThis.page.evaluate(async (selector) => {
+			const element = document.querySelector(selector) as HTMLInputElement;
+			if (element) element.value = "";
+			else Logger.error(`Element with selector ${selector} was not found`);
+		}, e);
+	}
+}
+
+export async function type(e: ElementHandle, text: string) {
+	await e.type(text, { delay: 20 });
+}
+
+export async function sleep(s: number) {
+	await new Promise<void>((resolve) => setTimeout(() => resolve(), s));
+}
+
+export async function getElements(s: string, xpath = false): Promise<ElementHandle[]> {
+	const elements = xpath ? await globalThis.page.$x(s) : await globalThis.page.$$(s);
+	return elements as ElementHandle[];
+}
+
+export async function getElement(s: string, xpath = false) {
+	return xpath ? (await page.$x(s))[0] : await page.$(s);
+}
+
+export async function getElementsBy(by: { selector: string, xpath: boolean }) {
+	return await getElements(by.selector, by.xpath);
+}
+
+export async function getElementBy(by: {selector: string, xpath: boolean}) {
+	return await getElement(by.selector, by.xpath);
+}

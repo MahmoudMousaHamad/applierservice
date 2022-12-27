@@ -1,22 +1,8 @@
-/* eslint-disable no-continue */
-/* eslint-disable no-await-in-loop */
-/* eslint-disable max-classes-per-file */
-/* eslint-disable class-methods-use-this */
-import { WebDriver } from "selenium-webdriver";
-
 import { QuestionInfo, QuestionsInfo } from "../jobapplication/Question";
-import { Categorizer, Logger } from "../lib";
-import {
-	killDriverProcess,
-	openChromeSession,
-	attachToSession,
-	Locator,
-	Scripts,
-	Helper,
-	downloadChromeDriver,
-} from "../driver";
-
+import { killDriverProcess, Locator, Helper } from "../driver";
+import { launchBrowser } from "../driver/Manager";
 import { Site, Status } from "./Site";
+import { Logger } from "../lib";
 
 export default abstract class SiteCreator {
 	questionsInfo: QuestionsInfo = {
@@ -43,8 +29,6 @@ export default abstract class SiteCreator {
 		),
 	};
 
-	driver?: WebDriver;
-
 	status: Status;
 
 	constructor() {
@@ -56,20 +40,29 @@ export default abstract class SiteCreator {
 	}
 
 	public async start(): Promise<void> {
-		await openChromeSession();
-		this.status = Status.RUNNING;
-		this.driver = await attachToSession();
-		Helper.init(this.driver as WebDriver);
-		const site = this.createSite(this.driver as WebDriver);
+		await launchBrowser();
+		page.on("dialog", async dialog => {
+			Logger.info(`Dialog appeared with message: ${dialog.message()}`);
+			Logger.info("Accepting dialog");
+			await dialog.accept();
+		});
+		browser.on("targetCreated", async () => {
+			globalThis.pages = await global.browser.pages(); 
+			Logger.info("A new tab or window was created.");
+			Logger.info(`There are ${pages.length} page(s)`);
+		});
+		await Helper.checkTabs();
+		const site = this.createSite();
 		await site.goToJobsPage();
-		const locator = new Locator.Locator(this.driver as WebDriver, site);
-		await locator.waitUntilSignIn();
+		this.status = Status.RUNNING;
+		const locator = new Locator.Locator(site);
+		await locator.signin();
 		await this.run();
 	}
 
 	async stop() {
 		Logger.info("Stopping applier 2");
-		await this.driver?.close();
+		await globalThis.browser.close();
 		await killDriverProcess();
 	}
 
@@ -89,14 +82,11 @@ export default abstract class SiteCreator {
 		await this.resume();
 	}
 
-	public abstract createSite(driver: WebDriver): Site;
+	public abstract createSite(): Site;
 
 	public async run(): Promise<void> {
-		const site = this.createSite(this.driver as WebDriver);
-		const locator = new Locator.Locator(this.driver as WebDriver, site);
-		await this.driver?.executeScript(Scripts.DoNotInteract);
-		await this.driver?.sleep(5000);
-
+		const site = this.createSite();
+		const locator = new Locator.Locator(site);
 		while (this.status === Status.RUNNING) {
 			let locatorResult;
 			try {
@@ -113,14 +103,13 @@ export default abstract class SiteCreator {
 				try {
 					Logger.info(`Running action for ${page}`);
 					await action();
-					await Helper.checkTabs();
+					Logger.info(`Finished action for ${page}`);
 				} catch (e) {
-					Logger.error(`Something went wrong while running action ${page}`);
+					Logger.error(`Something went wrong while running action ${page}. Error: ${e}`);
 					await new Promise<void>((resolve) => {
 						setTimeout(async () => {
 							try {
 								await action();
-								await Helper.checkTabs();
 							} catch (e2) {
 								Logger.error(
 									`Something went wrong AGAIN while running action for ${page}, falling back`,
@@ -136,7 +125,8 @@ export default abstract class SiteCreator {
 			} else {
 				await site.goToJobsPage();
 			}
-			await this.driver?.sleep(2000);
+			await Helper.sleep(5000);
+			await Helper.checkTabs();
 		}
 	}
 }

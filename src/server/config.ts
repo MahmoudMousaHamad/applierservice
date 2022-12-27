@@ -21,7 +21,7 @@ switch (NODE_ENV) {
     default:
         console.log("ℹ️  Running in development environment");
         config = {
-            serverEndpoint: 'localhost:3000/',
+            serverEndpoint: 'http://172.19.0.2:3000/',
             PORT: 3001,
         }
         break;

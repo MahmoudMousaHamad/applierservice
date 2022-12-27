@@ -1,17 +1,11 @@
-/* eslint-disable no-plusplus */
-/* eslint-disable consistent-return */
-/* eslint-disable @typescript-eslint/return-await */
-/* eslint-disable no-continue */
-/* eslint-disable no-restricted-syntax */
-/* eslint-disable no-await-in-loop */
-/* eslint-disable no-undef */
-import { By } from "selenium-webdriver";
+import { ElementHandle } from "puppeteer";
 
 import { SingletonCategorizer } from "../lib/Categorizer";
+import { Helper } from "../driver";
 import Logger from "../lib/Logger";
 import Question from "./Question";
+import {server} from "../../";
 import { Site } from "../sites";
-import server from "../../index";
 
 class QAManager {
 	site: Site;
@@ -96,7 +90,7 @@ class QAManager {
 			const answered = await question.attemptToAnswer();
 			if (answered) {
 				Logger.info("Question answering attempt successful.");
-				await this.site.driver.sleep(500);
+				await Helper.sleep(500);
 			} else {
 				this.questionsToSend.push(question);
 			}
@@ -111,20 +105,19 @@ class QAManager {
 	}
 
 	async gatherQuestions() {
-		const questionsElements = await this.site.driver.findElements(
-			By.xpath(
-				`${this.site.selectors.questionsXpathPrefex.selector}//*[(self::input or self::textarea or self::select)]/ancestor::*/preceding-sibling::label/..//label[not(./input)]/.. | ${this.site.selectors.questionsXpathPrefex.selector}//legend/..`
-			)
-		);
+		const questionsElements = await Helper.getElements(
+			`${this.site.selectors.questionsXpathPrefex.selector}//*[(self::input or self::textarea or self::select)]/ancestor::*/preceding-sibling::label/..//label[not(./input)]/.. | ${this.site.selectors.questionsXpathPrefex.selector}//legend/..`,
+			true
+		) as ElementHandle[];
 
 		for (const qe of questionsElements) {
-			const inputText = await qe.findElement(By.xpath("./label | ./legend"));
-			const text = await inputText.getText();
+			const [textElement] = await qe.$x("./label | ./legend");
+			const text = await Helper.getElementText(textElement);
 			if (!text.includes("optional")) {
 				const question = new Question(qe, this.site);
-				const coolQuestion = await question.prepare();
-				if (!coolQuestion) {
-					Logger.info(`Question could not be prepared ${await qe.getText()}`);
+				const questionOK = await question.prepare();
+				if (!questionOK) {
+					Logger.info(`Question could not be prepared ${text}`);
 					return false;
 				}
 				this.allQuestions.push(question);
@@ -135,7 +128,7 @@ class QAManager {
 	}
 
 	setupIPCListeners() {
-		server.on(this.listeners.answers, async (_event, { answers }) => {
+		server.on(this.listeners.answers, async (_event: any, { answers }: any) => {
 			if (!this.questionsToSend) return;
 			for (let i = 0; i < answers.length; i++) {
 				const question = this.questionsToSend[i];

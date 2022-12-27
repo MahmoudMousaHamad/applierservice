@@ -1,5 +1,4 @@
-/* eslint-disable no-restricted-syntax */
-import { WebElement } from "selenium-webdriver";
+import { ElementHandle } from "puppeteer";
 
 import { Preferences } from "../lib";
 
@@ -8,11 +7,11 @@ import Job from "./Job";
 export default class CoverLetter {
 	preferences: Preferences;
 
-	element: WebElement;
+	element: ElementHandle;
 
 	job: Job;
 
-	constructor(preferences: Preferences, element: WebElement, job: Job) {
+	constructor(preferences: Preferences, element: ElementHandle, job: Job) {
 		this.preferences = preferences;
 		this.element = element;
 		this.job = job;
@@ -40,6 +39,6 @@ export default class CoverLetter {
 	}
 
 	async fill() {
-		await this.element.sendKeys(this.replaceTokens());
+		await this.element.type(this.replaceTokens());
 	}
 }

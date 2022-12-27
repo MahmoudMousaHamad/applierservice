@@ -1,18 +1,11 @@
-/* eslint-disable import/no-named-as-default */
-/* eslint-disable no-restricted-syntax */
-/* eslint-disable no-await-in-loop */
-/* eslint-disable no-continue */
-/* eslint-disable class-methods-use-this */
-/* eslint-disable max-classes-per-file */
-import { WebDriver, By, Key } from "selenium-webdriver";
-
 import { CoverLetter, Job, QnAManager } from "../jobapplication";
 import { UserData, Logger } from "../lib";
 import { Helper, Locator } from "../driver";
 
 import SiteCreator from "./SiteCreator";
 import { Site } from "./Site";
-import server from "../..";
+import {server} from "../..";
+import { ElementHandle, Frame } from "puppeteer";
 
 const { SOURCE, TITLE } = Locator;
 
@@ -34,7 +27,8 @@ export class IndeedSite extends Site {
 			action: this.answerQuestions.bind(this),
 		},
 		experience: {
-			strings: ["Select a past job that shows relevant experience"],
+			strings: ["Select a past job that shows relevant experience", 
+			"Highlight a job that shows relevant experience"],
 			type: SOURCE,
 			action: this.chooseExperience.bind(this),
 		},
@@ -92,62 +86,39 @@ export class IndeedSite extends Site {
 			title,
 		};
 
-		await this.driver.get(
-			`https://www.indeed.com/jobs?q=${title}&l=${location}&sc=0kf%3Aexplvl(${UserData.experienceLevel})jt(${UserData.jobType})`
+		await globalThis.page.goto(
+			`https://www.indeed.com/jobs?q=${title}&l=${location}&sc=0kf%3Aexplvl(${UserData.experienceLevel})jt(${UserData.jobType})`,
+			{ waitUntil: "networkidle0" }     // <-- Make sure the whole page is completely loaded
 		);
 	}
 
-	async enterApplication() {
-		let applyNowPressed = false;
-
-		await this.driver.sleep(5000);
-
-		const cards = await this.driver.findElements(
-			Site.getBy(this.selectors.smallJobCard)
-		);
-
-		for (const card of cards) {
-			await this.driver.switchTo().defaultContent();
-
-			try {
-				if ((await card.getText()).includes("Applied")) continue;
-			} catch (e) {
-				continue;
-			}
-
-			await card.click();
-
-			await this.driver.sleep(2500);
-
-			const iframe = await this.driver.findElements(
-				Site.getBy(this.selectors.bigJobCard)
-			);
-
-			if (iframe.length > 0) {
-				await this.driver.switchTo().frame(iframe[0]);
-			}
-
-			if (
-				(await this.driver.findElements(Site.getBy(this.selectors.applyButton)))
-					.length > 0
-			) {
-				try {
-					await this.driver
-						.findElement(Site.getBy(this.selectors.applyButton))
-						.click();
-					await Helper.checkTabs();
-				} catch (e) {
-					await this.driver.switchTo().defaultContent();
-					continue;
-				}
-				applyNowPressed = true;
-				break;
-			}
+	async signin(): Promise<boolean> {
+		await page.goto('https://indeed.com');
+		// await Helper.sleep(5000);
+		// const googleFrame = await page.$("#credential_picker_container iframe");
+		// if (googleFrame) {
+		// 	Logger.info("Found Google sign in frame");
+		// 	const frameContent = await googleFrame?.contentFrame() as Frame;
+		// 	const continueAs = await frameContent.$("//div[contains(text(), 'Continue as')]/..");
+		// 	await continueAs?.click();
+		// 	Helper.sleep(2000);
+		// 	return true;
+		// }
+	    const [button] = await page.$x("//a[contains(text(),'Sign in')]") as ElementHandle[];
+		await button.click();
+		await Helper.sleep(1000);
+	    const [googleBtn] = await page.$$("#login-google-button") as ElementHandle[];
+		if (!googleBtn) throw Error("Google button was not found");
+		await googleBtn.click();
+		await Helper.sleep(2000);
+		const pages = await browser.pages();
+		if (pages.length > 1) {
+			const googlePage = pages[pages.length - 1];
+			await googlePage.type("input[type='email']", "mahmoudmousahamad\n", {delay: 20});
+			await Helper.sleep(1000);
+			await googlePage.type("input[type='password']", "5337301Mh!\n", {delay: 20});
 		}
-
-		await this.driver.switchTo().defaultContent();
-
-		if (!applyNowPressed) await this.goToJobsPage();
+		return true;
 	}
 
 	async answerQuestions() {
@@ -155,32 +126,23 @@ export class IndeedSite extends Site {
 	}
 
 	async chooseExperience() {
-		await this.driver.sleep(1000);
+		await Helper.sleep(1000);
 		await this.continue();
 	}
 
 	async chooseLetter() {
 		try {
-			await (
-				await this.driver.findElements(Site.getBy(this.selectors.coverLetter))
-			)[3].click();
+			await (await Helper.getElementsBy(this.selectors.coverLetter))[3].click();
 		} catch (e) {
 			Logger.error(e);
 		}
-		await this.driver.sleep(1000);
+		await Helper.sleep(1000);
 		if (
 			UserData?.coverLetter &&
 			UserData?.coverLetter !== ""
 		) {
-			const textarea = await this.driver.findElement(
-				Site.getBy(this.selectors.textarea)
-			);
-			await this.driver.executeScript(
-				(element: any) => element.select(),
-				textarea
-			);
-			await textarea.sendKeys(Key.BACK_SPACE);
-
+			const [textarea] = await Helper.getElementsBy(this.selectors.textarea);
+			await Helper.clearInput(this.selectors.textarea.selector);
 			const coverLetter = new CoverLetter(
 				UserData,
 				textarea,
@@ -188,7 +150,7 @@ export class IndeedSite extends Site {
 			);
 			await coverLetter.fill();
 		}
-		await this.driver.sleep(1000);
+		await Helper.sleep(1000);
 		await this.continue();
 	}
 
@@ -198,53 +160,58 @@ export class IndeedSite extends Site {
 }
 
 export class IndeedSiteCreator extends SiteCreator {
-	public createSite(driver: WebDriver): Site {
+	public createSite(): Site {
 		const selectors = {
 			errors: {
 				selector: "//div[@class='css-mllman e1wnkr790']",
-				by: By.css,
+				xpath: true,
 			},
 			bigJobCard: {
 				selector: "#vjs-container-iframe",
-				by: By.css,
+				xpath: false,
 			},
 			applyButton: {
-				selector: ".ia-IndeedApplyButton",
-				by: By.css,
+				// selector: "#indeedApplyButton",
+				selector: ".jobsearch-IndeedApplyButton-buttonWrapper button",
+				xpath: false,
 			},
 			nextButton: {
 				selector: ".ia-continueButton",
-				by: By.css,
+				xpath: false,
 			},
 			coverLetter: {
 				selector: "div.css-kyg8or",
-				by: By.css,
+				xpath: false,
 			},
-			smallJobCard: {
+			cards: {
 				selector: ".cardOutline",
-				by: By.css,
+				xpath: false,
 			},
 			signedIn: {
 				selector: "#AccountMenu",
-				by: By.css,
+				xpath: false,
 			},
 			textarea: {
 				selector: "textarea",
-				by: By.css,
+				xpath: false,
 			},
 			companyName: {
 				selector: ".ia-JobHeader-information span",
-				by: By.css,
+				xpath: false,
 			},
 			position: {
 				selector: ".ia-JobHeader-information h2",
-				by: By.css,
+				xpath: false,
 			},
 			questionsXpathPrefex: {
 				selector: "",
-				by: By.xpath,
+				xpath: true,
 			},
+			jobCard: {
+				selector: "iframe.jobsearch-ViewJobContainer-inner",
+				xpath: false,
+			}
 		};
-		return new IndeedSite(driver, selectors, super.getQuestionsInfo());
+		return new IndeedSite(selectors, super.getQuestionsInfo());
 	}
 }

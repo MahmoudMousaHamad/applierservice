@@ -1,4 +1,3 @@
-/* eslint-disable import/prefer-default-export */
 const htmlToElement = `
 	function htmlToElement(html) {
 		var template = document.createElement('template');

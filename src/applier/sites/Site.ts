@@ -1,13 +1,8 @@
-/* eslint-disable no-continue */
-/* eslint-disable no-await-in-loop */
-/* eslint-disable max-classes-per-file */
-/* eslint-disable class-methods-use-this */
-
-import { By, WebDriver } from "selenium-webdriver";
-
 import { QuestionsInfo } from "../jobapplication/Question";
 import { Job } from "../jobapplication";
 import { Helper } from "../driver";
+import { ElementHandle, Frame, Page } from "puppeteer";
+import { Logger } from "../lib";
 
 export enum Status {
 	RESTART,
@@ -27,12 +22,12 @@ interface LocationAction {
 export interface SiteInterface {
 	locationsAndActions: LocationAction;
 	questionsInfo: QuestionsInfo;
-	driver: WebDriver;
 	selectors: any;
 
 	submitApplication(): Promise<void>;
 	answerQuestions(): Promise<void>;
 	goToJobsPage(): Promise<void>;
+	signin(): Promise<boolean>;
 }
 
 interface JobSearchParams {
@@ -45,6 +40,7 @@ interface JobSearchParams {
 export abstract class Site implements SiteInterface {
 	abstract answerQuestions(): Promise<void>;
 	abstract goToJobsPage(): Promise<void>;
+	abstract signin(): Promise<boolean>;
 
 	questionsInfo: QuestionsInfo;
 
@@ -56,33 +52,55 @@ export abstract class Site implements SiteInterface {
 
 	submittedDate?: Date;
 
-	driver: WebDriver;
+	page: Page;
 
 	selectors: {
-		[name: string]: { selector: string; by: (selector: string) => By };
+		[name: string]: { selector: string; xpath: boolean };
 	};
 
 	job?: Job;
 
-	constructor(driver: WebDriver, selectors: any, questionsInfo: QuestionsInfo) {
+	constructor(selectors: any, questionsInfo: QuestionsInfo) {
 		this.questionsInfo = questionsInfo;
 		this.locationsAndActions = {};
 		this.selectors = selectors;
-		this.driver = driver;
+		this.page = globalThis.page;
 	}
 
-	static getBy(selector: any): By {
-		return selector.by(selector.selector);
+	async enterApplication() {
+		const cards = await Helper.getElementsBy(this.selectors.cards);
+		for (const card of cards) {
+			const cardText = await Helper.getElementText(card);
+			try {
+				if (cardText.includes("Applied")) continue;
+			} catch (e) {
+				continue;
+			}
+			await card.click();
+			await Helper.sleep(2000);
+			let applyButton = await Helper.getElementBy(this.selectors.applyButton) as ElementHandle;
+			if (this.selectors.jobCard) {
+				const frame = await Helper.getElementBy(this.selectors.jobCard);
+				if (frame) {
+					const frameContent = await frame?.contentFrame() as Frame;
+					[applyButton] = await frameContent.$x(this.selectors.applyButton.selector) as ElementHandle[];
+				}
+			}
+			if (applyButton) {
+				Logger.info("Attempting to click apply button");
+				await applyButton.click();
+				return;
+			} else {
+				Logger.info("Apply button was not found");
+			}
+		}
+		await this.goToJobsPage();
 	}
 
 	async getJobInfo(): Promise<void> {
-		const company = await Helper.getText(
-			Site.getBy(this.selectors.companyName)
-		);
-		const position = await Helper.getText(Site.getBy(this.selectors.position));
-
-		console.log("Job info:", position, company);
-
+		const company = await Helper.getElementText((await Helper.getElementsBy(this.selectors.companyName))[0]);
+		const position = await Helper.getElementText((await Helper.getElementsBy(this.selectors.position))[0]);
+		Logger.info("Job info:", position, company);
 		this.job = new Job(
 			position,
 			company,
@@ -93,8 +111,7 @@ export abstract class Site implements SiteInterface {
 
 	async resumeSection() {
 		await this.getJobInfo();
-		await Helper.scroll();
-		await this.driver.sleep(1000);
+		await Helper.sleep(1000);
 		await this.continue();
 	}
 
@@ -104,23 +121,15 @@ export abstract class Site implements SiteInterface {
 
 	async exitApplication() {
 		await this.goToJobsPage();
-		await this.driver.sleep(1000);
-		await Helper.acceptAlert();
+		await Helper.sleep(1000);
 	}
 
 	async handleDoneAnsweringQuestions() {
 		await this.continue();
-		if (
-			(await this.driver.findElements(Site.getBy(this.selectors.errors)))
-				.length > 0
-		) {
-			await this.exitApplication();
-		}
+		if ((await Helper.getElementsBy(this.selectors.errors)).length > 0) await this.exitApplication();
 	}
 
 	async continue() {
-		await (
-			await this.driver.findElement(Site.getBy(this.selectors.nextButton))
-		).click();
+		(await Helper.getElementsBy(this.selectors.nextButton))[0].click();
 	}
 }

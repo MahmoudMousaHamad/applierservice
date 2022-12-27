@@ -1,18 +1,11 @@
-/* eslint-disable import/no-named-as-default */
-/* eslint-disable no-restricted-syntax */
-/* eslint-disable no-await-in-loop */
-/* eslint-disable no-continue */
-/* eslint-disable class-methods-use-this */
-/* eslint-disable max-classes-per-file */
-import { WebDriver, By } from "selenium-webdriver";
-
 import { QnAManager, QuestionInfo } from "../jobapplication";
 import { UserData } from "../lib";
 import { Locator, Helper } from "../driver";
 
-import { Site } from "./Site";
 import SiteCreator from "./SiteCreator";
-import server from "../..";
+import { Site } from "./Site";
+import {server} from "../..";
+import { ElementHandle } from "puppeteer";
 
 export class LinkedInSite extends Site {
 	locationsAndActions = {
@@ -105,52 +98,19 @@ export class LinkedInSite extends Site {
 			.map(([, { name, value }]) => `${name}=${value}`)
 			.join("&");
 
-		await this.driver.get(
-			`https://www.linkedin.com/jobs/search/?${stringSearchParams}`
+		await globalThis.page.goto(`https://www.linkedin.com/jobs/search/?${stringSearchParams}`, 
+			{ waitUntil: "networkidle0" } 
 		);
-
-		await this.enterApplication();
 	}
 
-	async enterApplication() {
-		let applyNowPressed = false;
-
-		await this.driver.sleep(5000);
-
-		const cards = await this.driver.findElements(
-			Site.getBy(this.selectors.smallJobCard)
-		);
-
-		for (const card of cards) {
-			try {
-				if ((await card.getText()).toLowerCase().includes("applied")) continue;
-			} catch (e) {
-				continue;
-			}
-
-			await card.click();
-
-			await this.driver.sleep(3000);
-
-			if (
-				(await this.driver.findElements(Site.getBy(this.selectors.applyButton)))
-					.length > 0
-			) {
-				try {
-					await this.driver
-						.findElement(Site.getBy(this.selectors.applyButton))
-						.click();
-					await Helper.checkTabs();
-				} catch (e) {
-					await this.driver.switchTo().defaultContent();
-					continue;
-				}
-				applyNowPressed = true;
-				break;
-			}
-		}
-
-		if (!applyNowPressed) await this.goToJobsPage();
+	async signin(): Promise<boolean> {
+		await page.goto('https://indeed.com');
+	    const [button] = await page.$x("//a[contains(text(),'Sign in')]") as ElementHandle[];
+		await button.click();
+		await Helper.sleep(1000);
+	    const [googleBtn] = await page.$x("//button[contains(text(),'Google')]") as ElementHandle[];
+		await googleBtn.click();
+		return true;
 	}
 
 	async answerQuestions() {
@@ -159,7 +119,7 @@ export class LinkedInSite extends Site {
 }
 
 export class LinkedInSiteCreator extends SiteCreator {
-	public createSite(driver: WebDriver): Site {
+	public createSite(): Site {
 		const questionsInfo = super.getQuestionsInfo();
 		questionsInfo.radio = new QuestionInfo(
 			"radio",
@@ -170,46 +130,47 @@ export class LinkedInSiteCreator extends SiteCreator {
 		const selectors = {
 			errors: {
 				selector: "#todo-change-me",
-				by: By.css,
+				xpath: false,
 			},
 			jobCardBigXpath: {
 				selector: "//section[starts-with(@class,'scaffold-layout__detail')]",
-				by: By.xpath,
+				xpath: true,
 			},
 			applyButton: {
-				selector: "button.jobs-apply-button",
-				by: By.css,
+				// selector: "button.jobs-apply-button",
+				selector: "//span[text()[contains(.,'Easy Apply')]]/..",
+				xpath: true,
 			},
 			nextButton: {
 				selector:
 					"//span[text()[contains(.,'Next') or contains(.,'Review') or contains(.,'Submit application')]]/..",
-				by: By.xpath,
+				xpath: true,
 			},
-			smallJobCard: {
+			cards: {
 				selector: "ul.scaffold-layout__list-container > li",
-				by: By.css,
+				xpath: false,
 			},
 			companyName: {
 				selector: ".jobs-unified-top-card__company-name",
-				by: By.css,
+				xpath: false,
 			},
 			position: {
 				selector: ".jobs-unified-top-card__job-title",
-				by: By.css,
+				xpath: false,
 			},
 			signedIn: {
 				selector: "#ember15",
-				by: By.css,
+				xpath: false,
 			},
 			textarea: {
 				selector: "textarea",
-				by: By.css,
+				xpath: false,
 			},
 			questionsXpathPrefex: {
 				selector: "//div[@class='jobs-easy-apply-content']",
-				by: By.xpath,
+				xpath: true,
 			},
 		};
-		return new LinkedInSite(driver, selectors, questionsInfo);
+		return new LinkedInSite(selectors, questionsInfo);
 	}
 }

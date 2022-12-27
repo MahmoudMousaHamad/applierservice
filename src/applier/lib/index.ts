@@ -1,4 +1,4 @@
-export { default as UserData, Preferences } from "./Preferences";
+export { UserData } from "./UserData";
 export {
 	Classifier,
 	CLASSIFIER_PATH,

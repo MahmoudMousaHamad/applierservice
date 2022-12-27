@@ -59,22 +59,10 @@ const CATEGORIZER_PATH = path.resolve(OS.appDatatDirPath, "./categorizer.json");
 // Saved to file when driver is closed
 export class Categorizer {
 	load(userAnswers) {
-		Logger.info("Loading categorizer" + userAnswers);
-		Logger.info(`Categorizer file exists: ${fs.existsSync(CATEGORIZER_PATH)}`);
-		this.categorizer = userAnswers;
-		// if (fs.existsSync(CATEGORIZER_PATH)) {
-		// 	this.categorizer = JSON.parse(
-		// 		fs.readFileSync(CATEGORIZER_PATH, {
-		// 			encoding: "utf8",
-		// 			flag: "r",
-		// 		})
-		// 	);
-		// 	for (const category in userAnswers) {
-		// 		this.categorizer[category].answer = userAnswers[category].answer;
-		// 	}
-		// } else {
-		// 	this.categorizer = userAnswers;
-		// }
+		if (typeof userAnswers === "string") this.categorizer = JSON.parse(userAnswers);
+		else if (typeof userAnswers === "object") this.categorizer = userAnswers;
+		else throw Error("User's answers type is not recognized");
+		return true;
 	}
 
 	save() {

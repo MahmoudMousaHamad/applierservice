@@ -1,17 +1,8 @@
-/* eslint-disable no-await-in-loop */
-/* eslint-disable max-classes-per-file */
-/* eslint-disable no-labels */
-/* eslint-disable no-restricted-syntax */
-/* eslint-disable no-continue */
-/* eslint-disable no-await-in-loop */
-/* eslint global-require: off, no-console: off, promise/always-return: off */
-
-import { WebDriver, By } from "selenium-webdriver";
 
 import Logger from "../lib/Logger";
 import { Site } from "../sites";
+import { Helper } from ".";
 
-import { PleaseSignIn } from "./Scripts";
 
 export const SOURCE = "SOURCE";
 export const TITLE = "TITLE";
@@ -19,14 +10,11 @@ export const TEXT = "TEXT";
 export const URL = "URL";
 
 export class Locator {
-	driver: WebDriver;
-
 	site: Site;
 
 	interval?: NodeJS.Timer;
 
-	constructor(driver: WebDriver, site: Site) {
-		this.driver = driver;
+	constructor(site: Site) {
 		this.site = site;
 	}
 
@@ -40,10 +28,8 @@ export class Locator {
 				if (value.type === TITLE) string = pageTitle;
 				else if (value.type === SOURCE) string = pageSource;
 				else if (value.type === TEXT)
-					string = await (
-						await this.driver.findElement(By.css("body"))
-					).getText();
-				else string = await this.driver.getCurrentUrl();
+					string = await Helper.getText("body");
+				else string = globalThis.page.url();
 			} catch (e) {
 				Logger.error(
 					"Something went wrong while getting the title or source of the page."
@@ -72,46 +58,30 @@ export class Locator {
 	}
 
 	async getTitle() {
-		const title = await this.driver.getTitle();
-		return title;
+		return await globalThis.page.title();
 	}
 
 	async getPageSource() {
 		let source;
-
 		try {
-			source = await this.driver.getPageSource();
+			source = await globalThis.page.content();
 		} catch (e) {
 			await this.site.goToJobsPage();
 		}
-
 		return source;
 	}
 
 	async signedIn() {
-		return (
-			(await this.driver.findElements(Site.getBy(this.site.selectors.signedIn)))
-				.length >= 1
-		);
+		return (await Helper.getElementsBy(this.site.selectors.signedIn)).length >= 1;
 	}
 
-	async waitUntilSignIn() {
+	async signin() {
 		const signedin = await this.signedIn();
 		if (signedin) {
 			Logger.info("User is signed in");
 		} else {
 			Logger.info("User is not signed in");
-			// TODO: this.site.signin();
-			await this.driver.executeScript(PleaseSignIn);
-			await new Promise<void>((resolve) => {
-				this.interval = setInterval(async () => {
-					if (await this.signedIn()) {
-						Logger.info("User just signed in.");
-						clearInterval(this.interval);
-						resolve();
-					}
-				}, 1000);
-			});
+			await this.site.signin();
 		}
 	}
 }
