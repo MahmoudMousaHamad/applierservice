@@ -1,24 +1,24 @@
 import { ElementHandle } from "puppeteer";
 
-import { Preferences } from "../lib";
+import { IUserData } from "../lib/UserData";
 
 import Job from "./Job";
 
 export default class CoverLetter {
-	preferences: Preferences;
+	userData: IUserData
 
 	element: ElementHandle;
 
 	job: Job;
 
-	constructor(preferences: Preferences, element: ElementHandle, job: Job) {
-		this.preferences = preferences;
+	constructor(userData: IUserData, element: ElementHandle, job: Job) {
+		this.userData = userData;
 		this.element = element;
 		this.job = job;
 	}
 
 	replaceTokens(): string {
-		const { coverLetter } = this.preferences;
+		const { coverLetter } = this.userData;
 		const tokens = {
 			company: {
 				replace: () => this.job.company,
@@ -27,7 +27,7 @@ export default class CoverLetter {
 				replace: () => this.job.position,
 			},
 			custom_paragraph: {
-				replace: () => this.preferences.titles[this.job.searchedJobTitle],
+				replace: () => this.userData.titles[this.job.searchedJobTitle],
 			},
 		};
 

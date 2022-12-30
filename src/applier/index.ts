@@ -1,35 +1,35 @@
 import { Browser, Page } from "puppeteer";
 import { Response } from "express";
 
-import { IndeedSiteCreator, LinkedInSiteCreator, Status } from "./sites";
+import { IndeedSiteCreator, LinkedInSiteCreator, SiteCreator, Status } from "./sites";
 import { SingletonCategorizer } from "./lib/Categorizer";
-import { Driver, killDriverProcess } from "./driver";
+import { killDriverProcess } from "./driver";
 import { Logger, UserData } from "./lib";
 
 declare global {
-    var browser: Browser;
-    var userData: any;
-    var pages: Page[];
-    var page: Page;
+    var browsers: { [userId: string]: Browser };
+    var pageses: { [userId: string]: Page[] };
+    var pages: { [userId: string]: Page };
 }
 
+globalThis.browsers = {};
+globalThis.pageses = {};
+globalThis.pages = {};
+
 class Applier {
-    private linkedin: LinkedInSiteCreator;
+    site: SiteCreator;
 
-    private indeed: IndeedSiteCreator;
+    userId: string;
 
-    private driver: Driver;
-
-    constructor () {
-        this.linkedin = new LinkedInSiteCreator();
-        this.indeed = new IndeedSiteCreator();
-        this.driver = new Driver(this.linkedin);
+    constructor (userId: string) {
+        this.site = new LinkedInSiteCreator(userId);
+        this.userId = userId; 
     }
 
     async start(userData: any, answers: any, res: Response) {
-        if (this.driver.getStatus() !== Status.RUNNING) {
-            if (userData.site === "INDEED") this.driver = new Driver(this.indeed);
-            else if (userData.site === "LINKEDIN") this.driver = new Driver(this.linkedin);
+        if (this.getStatus() !== Status.RUNNING) {
+            if (userData.site === "INDEED") this.site = new IndeedSiteCreator(this.userId);
+            else if (userData.site === "LINKEDIN") this.site = new LinkedInSiteCreator(this.userId);
             else {
                 res.status(403).send("Site parameter is invalid");
                 return;
@@ -40,7 +40,7 @@ class Applier {
                 return;
             }
             res.status(200).json({status: Status.RUNNING});
-            await this.driver.start();
+            await this.site.start();
         } else {
             res.status(403).json({
                 status: Status.RUNNING,
@@ -50,8 +50,8 @@ class Applier {
     }
 
     async stop(res?: Response) {
-        if (this.driver.getStatus() === Status.RUNNING || this.driver.getStatus() == Status.PAUSED) {
-            await this.driver.stop();
+        if (this.getStatus() === Status.RUNNING || this.getStatus() == Status.PAUSED) {
+            await this.site.stop();
             await killDriverProcess();
             res?.status(200).json({
                 answers: JSON.stringify(SingletonCategorizer.categorizer),
@@ -65,12 +65,12 @@ class Applier {
         }
     }
 
-    async pause(res: Response) {
-        if (this.driver.getStatus() === Status.RUNNING) {
+    pause(res: Response) {
+        if (this.getStatus() === Status.RUNNING) {
             res.status(200).json({
                 status: Status.PAUSED,
             });
-            await this.driver.pause();
+            this.site.pause();
         } else {
             res.status(500).json({
                 error: "Pause is not possible; the applier service is not running."
@@ -79,8 +79,8 @@ class Applier {
     }
 
     async resume(res: Response) {
-        if (this.driver.getStatus() === Status.PAUSED) {
-            await this.driver.resume();
+        if (this.getStatus() === Status.PAUSED) {
+            await this.site.resume();
             res.status(200).json({
                 status: this.getStatus(),
             });
@@ -92,11 +92,11 @@ class Applier {
     }
 
     async screenshot(p: string) {
-        await page.screenshot({ path: p });
+        await pages[this.userId].screenshot({ path: p });
     }
 
     getStatus(): Status {
-        return this.driver.getStatus();
+        return this.site.status;
     }
 }
 

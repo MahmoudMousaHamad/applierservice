@@ -24,6 +24,10 @@ class QAManager {
 
 	questionsSentDate: number;
 
+	userId: string;
+
+	helper: Helper;
+
 	constructor(site: Site) {
 		this.channels = {
 			questions: "questions",
@@ -33,6 +37,8 @@ class QAManager {
 		this.answeredLastQuestion = false;
 		this.questionsSentDate = 0;
 		this.questionsToSend = [];
+		this.userId = site.userId;
+		this.helper = site.helper;
 		this.allQuestions = [];
 		this.site = site;
 	}
@@ -90,7 +96,7 @@ class QAManager {
 			const answered = await question.attemptToAnswer();
 			if (answered) {
 				Logger.info("Question answering attempt successful.");
-				await Helper.sleep(500);
+				await this.helper.sleep(500);
 			} else {
 				this.questionsToSend.push(question);
 			}
@@ -101,18 +107,19 @@ class QAManager {
 		this.questionsSentDate = Date.now();
 		server.emit(this.channels.questions, {
 			questions: this.questionsToSend.map((question) => question.getInfo()),
+			userId: this.userId
 		});
 	}
 
 	async gatherQuestions() {
-		const questionsElements = await Helper.getElements(
+		const questionsElements = await this.helper.getElements(
 			`${this.site.selectors.questionsXpathPrefex.selector}//*[(self::input or self::textarea or self::select)]/ancestor::*/preceding-sibling::label/..//label[not(./input)]/.. | ${this.site.selectors.questionsXpathPrefex.selector}//legend/..`,
 			true
 		) as ElementHandle[];
 
 		for (const qe of questionsElements) {
 			const [textElement] = await qe.$x("./label | ./legend");
-			const text = await Helper.getElementText(textElement);
+			const text = await this.helper.getElementText(textElement);
 			if (!text.includes("optional")) {
 				const question = new Question(qe, this.site);
 				const questionOK = await question.prepare();
@@ -128,8 +135,8 @@ class QAManager {
 	}
 
 	setupIPCListeners() {
-		server.on(this.listeners.answers, async (_event: any, { answers }: any) => {
-			if (!this.questionsToSend) return;
+		server.on(this.listeners.answers, async ({ answers, userId }) => {
+			if (!this.questionsToSend || this.userId !== userId) return;
 			for (let i = 0; i < answers.length; i++) {
 				const question = this.questionsToSend[i];
 				if (!question) continue;

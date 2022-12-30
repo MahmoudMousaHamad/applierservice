@@ -1,11 +1,12 @@
+import { ElementHandle } from "puppeteer";
+
 import { QnAManager, QuestionInfo } from "../jobapplication";
+import { Locator } from "../driver";
 import { UserData } from "../lib";
-import { Locator, Helper } from "../driver";
+import {server} from "../..";
 
 import SiteCreator from "./SiteCreator";
 import { Site } from "./Site";
-import {server} from "../..";
-import { ElementHandle } from "puppeteer";
 
 export class LinkedInSite extends Site {
 	locationsAndActions = {
@@ -28,7 +29,7 @@ export class LinkedInSite extends Site {
 			strings: ["Your application was sent"],
 			type: Locator.TEXT,
 			action: async () => {
-				server.emit("application-submitted");
+				server.emit("application-submitted", this.userId);
 				await this.goToJobsPage();
 				this.submittedDate = new Date();
 			},
@@ -98,17 +99,17 @@ export class LinkedInSite extends Site {
 			.map(([, { name, value }]) => `${name}=${value}`)
 			.join("&");
 
-		await globalThis.page.goto(`https://www.linkedin.com/jobs/search/?${stringSearchParams}`, 
+		await pages[this.userId].goto(`https://www.linkedin.com/jobs/search/?${stringSearchParams}`, 
 			{ waitUntil: "networkidle0" } 
 		);
 	}
 
 	async signin(): Promise<boolean> {
-		await page.goto('https://indeed.com');
-	    const [button] = await page.$x("//a[contains(text(),'Sign in')]") as ElementHandle[];
+		await pages[this.userId].goto('https://indeed.com');
+	    const [button] = await pages[this.userId].$x("//a[contains(text(),'Sign in')]") as ElementHandle[];
 		await button.click();
-		await Helper.sleep(1000);
-	    const [googleBtn] = await page.$x("//button[contains(text(),'Google')]") as ElementHandle[];
+		await this.helper.sleep(1000);
+	    const [googleBtn] = await pages[this.userId].$x("//button[contains(text(),'Google')]") as ElementHandle[];
 		await googleBtn.click();
 		return true;
 	}
@@ -119,7 +120,7 @@ export class LinkedInSite extends Site {
 }
 
 export class LinkedInSiteCreator extends SiteCreator {
-	public createSite(): Site {
+	public createSite(userId: string): Site {
 		const questionsInfo = super.getQuestionsInfo();
 		questionsInfo.radio = new QuestionInfo(
 			"radio",
@@ -171,6 +172,6 @@ export class LinkedInSiteCreator extends SiteCreator {
 				xpath: true,
 			},
 		};
-		return new LinkedInSite(selectors, questionsInfo);
+		return new LinkedInSite(selectors, questionsInfo, userId);
 	}
 }

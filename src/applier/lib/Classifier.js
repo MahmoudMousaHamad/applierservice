@@ -1,4 +1,3 @@
-/* eslint-disable class-methods-use-this */
 import natural from "natural";
 import path from "path";
 import fs from "fs";

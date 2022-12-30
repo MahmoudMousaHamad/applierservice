@@ -4,12 +4,19 @@ import appRootPath from "app-root-path";
 import path from "path";
 
 import { Status } from "../applier/sites";
-import { Logger, UserData } from "../applier/lib";
+import { Logger } from "../applier/lib";
 import Applier from "../applier";
 import {server} from "../index";
+
 import Config from "./config";
 
-const applier = new Applier();
+const appliers: { [userId: string]: Applier } = {};
+
+const getApplier = (userId: string): Applier => {
+    if (appliers[userId]) return appliers[userId];
+    appliers[userId] = new Applier(userId);
+    return appliers[userId];
+};
 
 const controllerTemplate = (controller: Function) => {
     return async (req: Request, res: Response) => {
@@ -29,36 +36,37 @@ const controllerTemplate = (controller: Function) => {
 }
 
 const start = async (req: Request, res: Response) => {
-    await applier.start(req.body, req.body.answers, res);
+    await getApplier(req.body.userId).start(req.body, req.body.answers, res);
 };
 
 const stop = controllerTemplate(async (req: Request, res: Response) => {
-    await applier.stop(res);
+    await getApplier(req.body.userId).stop(res);
 });
 
-const pause = async (req: Request, res: Response) => {
-    await applier.pause(res);
+const pause = (req: Request, res: Response) => {
+    getApplier(req.body.userId).pause(res);
 };
 
 const resume = async (req: Request, res: Response) => {
-    await applier.resume(res);
+    await getApplier(req.body.userId).resume(res);
 };
 
 const getStatus = controllerTemplate(async (req: Request, res: Response) => {
     res.status(200).json({
-        status: applier.getStatus(),
+        status: getApplier(req.body.userId).getStatus(),
     });
 });
 
 const answers = controllerTemplate(async (req: Request, res: Response) => {
-    server.emit("answers", req.body.answers);
+    const {answers, userId} = req.body;
+    server.emit("answers", { answers, userId });
 });
 
 const screenshot = controllerTemplate(async (req: Request, res: Response) => {
-    const status = applier.getStatus();
+    const status = getApplier(req.body.userId).getStatus();
     const p = path.resolve(appRootPath.toString(), "screenshot.png");
     if (status === Status.RUNNING || status === Status.PAUSED) {
-        await applier.screenshot(p);
+        await getApplier(req.body.userId).screenshot(p);
         res.status(200).json({
             message: "Screenshot saved at " + p,
             status,
@@ -71,8 +79,8 @@ const screenshot = controllerTemplate(async (req: Request, res: Response) => {
 });
 
 const config = controllerTemplate(async (req: Request, res: Response) => {
-    const {address, port, userId} = req.body;
-    if (!address || !port || !userId) throw Error("Not all config variables are present");
+    const {address, port} = req.body;
+    if (!address || !port) throw Error("Not all config variables (address and port) are present");
     Config.serverEndpoint = `http://${address}:${port}/`;
     Logger.info("Main service url: " + Config.serverEndpoint);
     res.status(200).send("Config object set successfully");

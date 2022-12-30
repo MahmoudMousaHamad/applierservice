@@ -129,7 +129,7 @@ export async function openChromeSession() {
 	);
 }
 
-export async function launchBrowser(): Promise<void> {
+export async function launchBrowser(userId: string): Promise<void> {
 	const StealthPlugin = require('puppeteer-extra-plugin-stealth');
 	const puppeteer = require('puppeteer-extra');
 
@@ -153,8 +153,8 @@ export async function launchBrowser(): Promise<void> {
 	const page = await browser.newPage();
     await page.setBypassCSP(true);
 
-	globalThis.browser = browser;
-	globalThis.page = page;
+	browsers[userId] = browser;
+	pages[userId] = page;
 }
 
 export async function attachToSession() {

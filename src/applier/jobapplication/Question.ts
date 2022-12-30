@@ -61,31 +61,37 @@ class Question {
 
 	inputElement: ElementHandle;
 
+	helper: Helper;
+
+	userId: string;
+
 	constructor(element: ElementHandle, site: Site) {
 		this.inputElement = element;
 		this.options = null;
 		this.text = null;
 		this.site = site;
+		this.userId = this.site.userId;
+		this.helper = Helper.getInstance(this.site.userId);
 	}
 
 	answerFunctions: { [name: string]: any } = {
 		text: async (answer: string, inputSelector: string) => {
-			await Helper.clearInput(this.inputElement);
-			await Helper.type(this.inputElement, answer);
+			await this.helper.clearInput(this.inputElement);
+			await this.helper.type(this.inputElement, answer);
 		},
 		textarea: async (answer: string, inputSelector: string) => {
-			await Helper.clearInput(this.inputElement);
-			await Helper.type(this.inputElement, answer);
+			await this.helper.clearInput(this.inputElement);
+			await this.helper.type(this.inputElement, answer);
 		},
 		number: async (answer: string, inputSelector: string) => {
-			await Helper.clearInput(this.inputElement);
-			await Helper.type(this.inputElement, answer);
+			await this.helper.clearInput(this.inputElement);
+			await this.helper.type(this.inputElement, answer);
 		},
 		date: async (answer: string, inputSelector: string) => {
-			await Helper.clearInput(this.inputElement);
+			await this.helper.clearInput(this.inputElement);
 			const [year, month, day] = answer.split("-");
 			[month, day, year].forEach(async (part) => {
-				await Helper.type(this.inputElement, part);
+				await this.helper.type(this.inputElement, part);
 			});
 		},
 		radio: async (
@@ -93,9 +99,9 @@ class Question {
 			inputSelector: string,
 			optionsSelector: string
 		) => {
-			const options = await globalThis.page.$x(optionsSelector);
+			const options = await pages[this.userId].$x(optionsSelector);
 			for (let i = 0; i < options.length; ++i) {
-				if (answer.includes(await Helper.getElementText(options[i]))) {
+				if (answer.includes(await this.helper.getElementText(options[i]))) {
 					const option = options[i] as ElementHandle<HTMLElement>;
 					await option.click();
 					return;
@@ -105,15 +111,15 @@ class Question {
 			await (options[0] as ElementHandle<HTMLElement>).click();
 		},
 		select: async (answer: string, inputSelector: string) => {
-			await Helper.type(this.inputElement, answer);
+			await this.helper.type(this.inputElement, answer);
 		},
 		checkbox: async (
 			answer: number | string[],
 			inputSelector: string,
 			optionsSelector: string
 		) => {
-			const options = await globalThis.page.$x(optionsSelector) as ElementHandle<HTMLElement>[];
-			const inputs = await globalThis.page.$x(inputSelector) as ElementHandle<HTMLElement>[];
+			const options = await pages[this.userId].$x(optionsSelector) as ElementHandle<HTMLElement>[];
+			const inputs = await pages[this.userId].$x(inputSelector) as ElementHandle<HTMLElement>[];
 			// Uncheck any checked boxes
 			for (let i = 0; i < options.length; ++i) {
 				const checked = await (await inputs[i].getProperty('checked')).jsonValue();
@@ -127,7 +133,7 @@ class Question {
 			}
 			if (Array.isArray(answer)) {
 				for (let i = 0; i < options.length; ++i) {
-					if (answer.includes(await Helper.getElementText(options[i]))) await options[i].click();
+					if (answer.includes(await this.helper.getElementText(options[i]))) await options[i].click();
 				}
 				return;
 			}
@@ -260,7 +266,7 @@ class Question {
 		if (!this.type) return null;
 		const selector = this.site.questionsInfo[this.type].textSelector.join(",");
 		const e = await this.inputElement.$(selector) as ElementHandle;
-		return await Helper.getElementText(e);
+		return await this.helper.getElementText(e);
 	}
 
 	async getOptions(): Promise<any[] | null> {
@@ -273,10 +279,10 @@ class Question {
 			const { optionsSelector } = this.site.questionsInfo[this.type];
 			if (!optionsSelector) return null;
 
-			const optionsElements = await globalThis.page.$x(optionsSelector);
+			const optionsElements = await pages[this.userId].$x(optionsSelector);
 
 			for (let i = 0; i < optionsElements.length; ++i) {
-				const text = await Helper.getElementText(optionsElements[i]);
+				const text = await this.helper.getElementText(optionsElements[i]);
 				options.push(text);
 			}
 		} catch (e) {

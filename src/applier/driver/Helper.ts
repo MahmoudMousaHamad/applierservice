@@ -1,78 +1,97 @@
 import { ElementHandle } from "puppeteer";
 import Logger from "../lib/Logger";
 
-export async function scroll() {
-	await globalThis.page.evaluate(async () => {
-		await new Promise<void>((resolve) => {
-            var totalHeight = 0;
-            var distance = 100;
-            var timer = setInterval(() => {
-                var scrollHeight = document.body.scrollHeight;
-                window.scrollBy(0, distance);
-                totalHeight += distance;
+export class Helper {
+	private static instances: { [userId: string]: Helper} = {};
 
-                if(totalHeight >= scrollHeight - window.innerHeight){
-                    clearInterval(timer);
-                    resolve();
-                }
-            }, 400);
-        });
-	})
-}
+	userId: string;
 
-export async function checkTabs() {
-	let pages = await globalThis.browser.pages();
-	Logger.info(`There are ${pages.length} tabs open.`);
-	if (pages.length > 1) {
-		Logger.info("Closing tab " + await pages[0].title());
-		await pages[0].close();
-		page = pages[1];
+	constructor(userId: string) {
+		this.userId = userId;
 	}
-}
 
-export async function getText(xpath: string): Promise<string> {
-	const [e] = await page.$x(xpath);
-	return await globalThis.page.evaluate(name => name.textContent, e) as string;
-}
-
-export async function getElementText(e: ElementHandle<Node>): Promise<string> {
-	return await globalThis.page.evaluate(name => name.textContent, e) as string;
-}
-
-export async function clearInput(e: ElementHandle | string) {
-	if (e instanceof ElementHandle) {
-		await e.click({clickCount: 3});
-		await e.press('Backspace'); 
-	} else if (typeof e === 'string' || e as any instanceof String) {
-		await globalThis.page.evaluate(async (selector) => {
-			const element = document.querySelector(selector) as HTMLInputElement;
-			if (element) element.value = "";
-			else Logger.error(`Element with selector ${selector} was not found`);
-		}, e);
+	public static getInstance(userId: string): Helper {
+		if (!Helper.instances[userId]) {
+			Helper.instances[userId] = new Helper(userId);
+			return Helper.instances[userId];
+		}
+		return Helper.instances[userId];
 	}
-}
 
-export async function type(e: ElementHandle, text: string) {
-	await e.type(text, { delay: 20 });
-}
+	async scroll() {
+		await pages[this.userId].evaluate(async () => {
+			await new Promise<void>((resolve) => {
+				var totalHeight = 0;
+				var distance = 100;
+				var timer = setInterval(() => {
+					var scrollHeight = document.body.scrollHeight;
+					window.scrollBy(0, distance);
+					totalHeight += distance;
 
-export async function sleep(s: number) {
-	await new Promise<void>((resolve) => setTimeout(() => resolve(), s));
-}
+					if(totalHeight >= scrollHeight - window.innerHeight){
+						clearInterval(timer);
+						resolve();
+					}
+				}, 400);
+			});
+		})
+	}
 
-export async function getElements(s: string, xpath = false): Promise<ElementHandle[]> {
-	const elements = xpath ? await globalThis.page.$x(s) : await globalThis.page.$$(s);
-	return elements as ElementHandle[];
-}
+	async checkTabs() {
+		pageses[this.userId] = await browsers[this.userId].pages();
+		Logger.info(`There are ${pageses[this.userId].length} tabs open.`);
+		if (pageses[this.userId].length > 1) {
+			Logger.info("Closing tab " + await pageses[this.userId][0].title());
+			await pageses[this.userId][0].close();
+			pages[this.userId] = pageses[this.userId][1];
+		}
+	}
 
-export async function getElement(s: string, xpath = false) {
-	return xpath ? (await page.$x(s))[0] : await page.$(s);
-}
+	async getText(xpath: string): Promise<string> {
+		const [e] = await pages[this.userId].$x(xpath);
+		return await pages[this.userId].evaluate(name => name.textContent, e) as string;
+	}
 
-export async function getElementsBy(by: { selector: string, xpath: boolean }) {
-	return await getElements(by.selector, by.xpath);
-}
+	async getElementText(e: ElementHandle<Node>): Promise<string> {
+		return await pages[this.userId].evaluate(name => name.textContent, e) as string;
+	}
 
-export async function getElementBy(by: {selector: string, xpath: boolean}) {
-	return await getElement(by.selector, by.xpath);
+	async clearInput(e: ElementHandle | string) {
+		if (e instanceof ElementHandle) {
+			await e.click({clickCount: 3});
+			await e.press('Backspace'); 
+		} else if (typeof e === 'string' || e as any instanceof String) {
+			await pages[this.userId].evaluate(async (selector) => {
+				const element = document.querySelector(selector) as HTMLInputElement;
+				if (element) element.value = "";
+				else Logger.error(`Element with selector ${selector} was not found`);
+			}, e);
+		}
+	}
+
+	async type(e: ElementHandle, text: string) {
+		await e.type(text, { delay: 20 });
+	}
+
+	async sleep(s: number) {
+		await new Promise<void>((resolve) => setTimeout(() => resolve(), s));
+	}
+
+	async getElements(s: string, xpath = false): Promise<ElementHandle[]> {
+		const elements = xpath ? await pages[this.userId].$x(s) : await pages[this.userId].$$(s);
+		return elements as ElementHandle[];
+	}
+
+	async getElement(s: string, xpath = false) {
+		return xpath ? (await pages[this.userId].$x(s))[0] : await pages[this.userId].$(s);
+	}
+
+	async getElementsBy(by: { selector: string, xpath: boolean }) {
+		return await this.getElements(by.selector, by.xpath);
+	}
+
+	async getElementBy(by: {selector: string, xpath: boolean}) {
+		return await this.getElement(by.selector, by.xpath);
+	}
+
 }

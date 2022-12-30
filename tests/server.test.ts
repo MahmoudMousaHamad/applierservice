@@ -1,10 +1,7 @@
 import request from "supertest";
 
 import { app, server } from "../src";
-import { Driver } from "../src/applier/driver";
-
-jest.mock('../src/applier/driver');
-jest.useFakeTimers();
+import { SiteCreator } from "../src/applier/sites";
 
 const configURL = "/api/applier/config";
 const BASE_URL = "/api/applier/";
@@ -28,36 +25,28 @@ const userData = {
 
 const r = request(app);
 
-afterEach(async () => {
-    server.close();
-    (Driver as jest.Mock).mockClear();
+beforeAll(() => {
+    jest.spyOn(SiteCreator.prototype, 'start').mockImplementation(async () => {});
 });
 
+afterAll(() => {
+    server.close();
+    jest.restoreAllMocks();
+});
+
+
 describe("GET " + configURL, () => {
-    it("should set address and IP of main service as well as userId", async () => {
+    it("should set address and IP of main service for communication", async () => {
         await r.post(configURL).send({ 
-            userId: "test-user-id",
-            address: "172.0.0.1",
+            address: "172.0.0.2",
             port: "3000",
         }).expect(200);
     });
-    it("should raise an error if userId is not defined", async () => {
-        await r.post(configURL).send({ 
-            address: "172.0.0.1",
-            port: "3000",
-        }).expect(500);
-    });
     it("should raise an error if address is not defined", async () => {
-        await r.post(configURL).send({ 
-            userId: "test-user-id",
-            port: "3000",
-        }).expect(500);
+        await r.post(configURL).send({ port: "3000" }).expect(500);
     });
     it("should raise an error if port is not defined", async () => {
-        await r.post(configURL).send({ 
-            userId: "test-user-id",
-            address: "172.0.0.1",
-        }).expect(500);
+        await r.post(configURL).send({ address: "172.0.0.2" }).expect(500);
     });
 });
 
@@ -65,7 +54,6 @@ describe(`GET ${BASE_URL}controller/start`, () => {
     it("should start the applier service", async () => {
         await r.get(`${BASE_URL}controller/start`).send(userData).expect(200);
     });
-
     it("should return 403 if user options are invalid (titles missing)", async () => {
         await r.get(`${BASE_URL}controller/start`).send({...userData, titles: undefined}).expect(403);
     });

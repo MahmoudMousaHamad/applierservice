@@ -1,3 +1,5 @@
+import { Dialog } from "puppeteer";
+
 import { QuestionInfo, QuestionsInfo } from "../jobapplication/Question";
 import { killDriverProcess, Locator, Helper } from "../driver";
 import { launchBrowser } from "../driver/Manager";
@@ -5,6 +7,8 @@ import { Site, Status } from "./Site";
 import { Logger } from "../lib";
 
 export default abstract class SiteCreator {
+	public abstract createSite(userId: string): Site;
+
 	questionsInfo: QuestionsInfo = {
 		text: new QuestionInfo(
 			"text",
@@ -31,8 +35,14 @@ export default abstract class SiteCreator {
 
 	status: Status;
 
-	constructor() {
+	userId: string;
+
+	helper: Helper;
+
+	constructor(userId: string) {
 		this.status = Status.STOPPED;
+		this.userId = userId;
+		this.helper = Helper.getInstance(userId);
 	}
 
 	getQuestionsInfo(): QuestionsInfo {
@@ -40,29 +50,30 @@ export default abstract class SiteCreator {
 	}
 
 	public async start(): Promise<void> {
-		await launchBrowser();
-		page.on("dialog", async dialog => {
+		await launchBrowser(this.userId);
+
+		pages[this.userId].on("dialog", async (dialog: Dialog) => {
 			Logger.info(`Dialog appeared with message: ${dialog.message()}`);
 			Logger.info("Accepting dialog");
 			await dialog.accept();
 		});
-		browser.on("targetCreated", async () => {
-			globalThis.pages = await global.browser.pages(); 
+		browsers[this.userId].on("targetCreated", async () => {
+			pageses[this.userId] = await browsers[this.userId].pages(); 
 			Logger.info("A new tab or window was created.");
-			Logger.info(`There are ${pages.length} page(s)`);
+			Logger.info(`There are ${pageses[this.userId].length} page(s)`);
 		});
-		await Helper.checkTabs();
-		const site = this.createSite();
+		await this.helper.checkTabs();
+		const site = this.createSite(this.userId);
 		await site.goToJobsPage();
 		this.status = Status.RUNNING;
-		const locator = new Locator.Locator(site);
+		const locator = new Locator.Locator(site, this.userId);
 		await locator.signin();
 		await this.run();
 	}
 
 	async stop() {
 		Logger.info("Stopping applier 2");
-		await globalThis.browser.close();
+		await browsers[this.userId].close();
 		await killDriverProcess();
 	}
 
@@ -82,11 +93,10 @@ export default abstract class SiteCreator {
 		await this.resume();
 	}
 
-	public abstract createSite(): Site;
 
 	public async run(): Promise<void> {
-		const site = this.createSite();
-		const locator = new Locator.Locator(site);
+		const site = this.createSite(this.userId);
+		const locator = new Locator.Locator(site, this.userId);
 		while (this.status === Status.RUNNING) {
 			let locatorResult;
 			try {
@@ -94,7 +104,6 @@ export default abstract class SiteCreator {
 			} catch (e) {
 				continue;
 			}
-
 			const { action, status, page } = locatorResult;
 
 			if (status === "restart") {
@@ -125,8 +134,8 @@ export default abstract class SiteCreator {
 			} else {
 				await site.goToJobsPage();
 			}
-			await Helper.sleep(5000);
-			await Helper.checkTabs();
+			await this.helper.sleep(5000);
+			await this.helper.checkTabs();
 		}
 	}
 }

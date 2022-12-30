@@ -1,7 +1,8 @@
+import { ElementHandle, Frame } from "puppeteer";
+
 import { QuestionsInfo } from "../jobapplication/Question";
 import { Job } from "../jobapplication";
 import { Helper } from "../driver";
-import { ElementHandle, Frame, Page } from "puppeteer";
 import { Logger } from "../lib";
 
 export enum Status {
@@ -52,35 +53,38 @@ export abstract class Site implements SiteInterface {
 
 	submittedDate?: Date;
 
-	page: Page;
-
 	selectors: {
 		[name: string]: { selector: string; xpath: boolean };
 	};
 
 	job?: Job;
 
-	constructor(selectors: any, questionsInfo: QuestionsInfo) {
+	helper: Helper;
+
+	userId: string;
+
+	constructor(selectors: any, questionsInfo: QuestionsInfo, userId: string) {
+		this.helper = Helper.getInstance(userId);
 		this.questionsInfo = questionsInfo;
 		this.locationsAndActions = {};
 		this.selectors = selectors;
-		this.page = globalThis.page;
+		this.userId = userId;
 	}
 
 	async enterApplication() {
-		const cards = await Helper.getElementsBy(this.selectors.cards);
+		const cards = await this.helper.getElementsBy(this.selectors.cards);
 		for (const card of cards) {
-			const cardText = await Helper.getElementText(card);
+			const cardText = await this.helper.getElementText(card);
 			try {
 				if (cardText.includes("Applied")) continue;
 			} catch (e) {
 				continue;
 			}
 			await card.click();
-			await Helper.sleep(2000);
-			let applyButton = await Helper.getElementBy(this.selectors.applyButton) as ElementHandle;
+			await this.helper.sleep(2000);
+			let applyButton = await this.helper.getElementBy(this.selectors.applyButton) as ElementHandle;
 			if (this.selectors.jobCard) {
-				const frame = await Helper.getElementBy(this.selectors.jobCard);
+				const frame = await this.helper.getElementBy(this.selectors.jobCard);
 				if (frame) {
 					const frameContent = await frame?.contentFrame() as Frame;
 					[applyButton] = await frameContent.$x(this.selectors.applyButton.selector) as ElementHandle[];
@@ -98,8 +102,8 @@ export abstract class Site implements SiteInterface {
 	}
 
 	async getJobInfo(): Promise<void> {
-		const company = await Helper.getElementText((await Helper.getElementsBy(this.selectors.companyName))[0]);
-		const position = await Helper.getElementText((await Helper.getElementsBy(this.selectors.position))[0]);
+		const company = await this.helper.getElementText((await this.helper.getElementsBy(this.selectors.companyName))[0]);
+		const position = await this.helper.getElementText((await this.helper.getElementsBy(this.selectors.position))[0]);
 		Logger.info("Job info:", position, company);
 		this.job = new Job(
 			position,
@@ -111,7 +115,7 @@ export abstract class Site implements SiteInterface {
 
 	async resumeSection() {
 		await this.getJobInfo();
-		await Helper.sleep(1000);
+		await this.helper.sleep(1000);
 		await this.continue();
 	}
 
@@ -121,15 +125,15 @@ export abstract class Site implements SiteInterface {
 
 	async exitApplication() {
 		await this.goToJobsPage();
-		await Helper.sleep(1000);
+		await this.helper.sleep(1000);
 	}
 
 	async handleDoneAnsweringQuestions() {
 		await this.continue();
-		if ((await Helper.getElementsBy(this.selectors.errors)).length > 0) await this.exitApplication();
+		if ((await this.helper.getElementsBy(this.selectors.errors)).length > 0) await this.exitApplication();
 	}
 
 	async continue() {
-		(await Helper.getElementsBy(this.selectors.nextButton))[0].click();
+		(await this.helper.getElementsBy(this.selectors.nextButton))[0].click();
 	}
 }

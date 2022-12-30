@@ -1,7 +1,7 @@
 
 import Logger from "../lib/Logger";
 import { Site } from "../sites";
-import { Helper } from ".";
+import { Helper } from "./Helper";
 
 
 export const SOURCE = "SOURCE";
@@ -14,7 +14,13 @@ export class Locator {
 
 	interval?: NodeJS.Timer;
 
-	constructor(site: Site) {
+	helper: Helper;
+
+	userId: string;
+
+	constructor(site: Site, userId: string) {
+		this.helper = Helper.getInstance(userId);
+		this.userId = userId;
 		this.site = site;
 	}
 
@@ -28,8 +34,8 @@ export class Locator {
 				if (value.type === TITLE) string = pageTitle;
 				else if (value.type === SOURCE) string = pageSource;
 				else if (value.type === TEXT)
-					string = await Helper.getText("body");
-				else string = globalThis.page.url();
+					string = await this.helper.getText("body");
+				else string = pages[this.userId].url();
 			} catch (e) {
 				Logger.error(
 					"Something went wrong while getting the title or source of the page."
@@ -58,13 +64,13 @@ export class Locator {
 	}
 
 	async getTitle() {
-		return await globalThis.page.title();
+		return await pages[this.userId].title();
 	}
 
 	async getPageSource() {
 		let source;
 		try {
-			source = await globalThis.page.content();
+			source = await pages[this.userId].content();
 		} catch (e) {
 			await this.site.goToJobsPage();
 		}
@@ -72,7 +78,7 @@ export class Locator {
 	}
 
 	async signedIn() {
-		return (await Helper.getElementsBy(this.site.selectors.signedIn)).length >= 1;
+		return (await this.helper.getElementsBy(this.site.selectors.signedIn)).length >= 1;
 	}
 
 	async signin() {

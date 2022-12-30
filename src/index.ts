@@ -19,24 +19,22 @@ const server = app.listen(config.PORT, () => {
     Logger.info(`Main server endpoint is ${config.serverEndpoint}`);
 });
 
-server.on("questions", async (questions) => {
+server.on("questions", async ({ questions, userId }) => {
     Logger.info(`Sending questions to main service. Questions: ${JSON.stringify(questions)}`);
     try {
-        const response = await axios.post(`${config.serverEndpoint}api/qa/questions`, {
-            questions: JSON.stringify(questions),
-            userId: userData.userId,
+        await axios.post(`${config.serverEndpoint}api/qa/questions`, {
+            questions,
+            userId,
         });
     } catch(e) {
         Logger.error(`Something went wrong while sending questions to the main service. Error details: ${e}`);
     }
 });
 
-server.on("application-submitted", async () => {
+server.on("application-submitted", async (userId) => {
     try {
-        if (!userData) throw Error("User info was not initialized");
-        const response = await axios.post(`${config.serverEndpoint}api/applications/updateCount`, {
-            userId: userData.userId,
-        });
+        if (!userId) throw Error("User ID was not provided");
+        await axios.post(`${config.serverEndpoint}api/applications/updateCount`, { userId });
     } catch(e) {
         Logger.error(`Something went wrong while sending application submitted to main service. Error details: ${e}`);
     }
