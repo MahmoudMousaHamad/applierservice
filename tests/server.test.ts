@@ -1,7 +1,8 @@
 import request from "supertest";
 
+import { SiteCreator, Status } from "../src/applier/sites";
 import { app, server } from "../src";
-import { SiteCreator } from "../src/applier/sites";
+import Applier from "../src/applier";
 
 const configURL = "/api/applier/config";
 const BASE_URL = "/api/applier/";
@@ -28,12 +29,10 @@ const r = request(app);
 beforeAll(() => {
     jest.spyOn(SiteCreator.prototype, 'start').mockImplementation(async () => {});
 });
-
 afterAll(() => {
-    server.close();
     jest.restoreAllMocks();
+    server.close();
 });
-
 
 describe("GET " + configURL, () => {
     it("should set address and IP of main service for communication", async () => {
@@ -56,6 +55,15 @@ describe(`GET ${BASE_URL}controller/start`, () => {
     });
     it("should return 403 if user options are invalid (titles missing)", async () => {
         await r.get(`${BASE_URL}controller/start`).send({...userData, titles: undefined}).expect(403);
+    });
+});
+
+describe(`GET ${BASE_URL}controller/stop`, () => {
+    it("should stop the applier service", async () => {
+        await r.get(`${BASE_URL}controller/start`).send(userData).expect(200);
+        jest.spyOn(Applier.prototype, "getStatus").mockImplementation(() => Status.RUNNING);
+        await r.get(`${BASE_URL}controller/stop`).send(userData).expect(200);
+        jest.spyOn(Applier.prototype, "getStatus").mockReset();
     });
 });
 
