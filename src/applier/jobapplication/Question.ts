@@ -99,7 +99,7 @@ class Question {
 			inputSelector: string,
 			optionsSelector: string
 		) => {
-			const options = await pages[this.userId].$x(optionsSelector);
+			const options = await this.inputElement.$x(optionsSelector);
 			for (let i = 0; i < options.length; ++i) {
 				if (answer.includes(await this.helper.getElementText(options[i]))) {
 					const option = options[i] as ElementHandle<HTMLElement>;
@@ -118,8 +118,8 @@ class Question {
 			inputSelector: string,
 			optionsSelector: string
 		) => {
-			const options = await pages[this.userId].$x(optionsSelector) as ElementHandle<HTMLElement>[];
-			const inputs = await pages[this.userId].$x(inputSelector) as ElementHandle<HTMLElement>[];
+			const options = await this.inputElement.$x(optionsSelector) as ElementHandle<HTMLElement>[];
+			const inputs = await this.inputElement.$x(inputSelector) as ElementHandle<HTMLElement>[];
 			// Uncheck any checked boxes
 			for (let i = 0; i < options.length; ++i) {
 				const checked = await (await inputs[i].getProperty('checked')).jsonValue();
@@ -279,7 +279,7 @@ class Question {
 			const { optionsSelector } = this.site.questionsInfo[this.type];
 			if (!optionsSelector) return null;
 
-			const optionsElements = await pages[this.userId].$x(optionsSelector);
+			const optionsElements = await this.inputElement.$x(optionsSelector);
 
 			for (let i = 0; i < optionsElements.length; ++i) {
 				const text = await this.helper.getElementText(optionsElements[i]);

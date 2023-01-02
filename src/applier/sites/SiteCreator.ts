@@ -53,15 +53,11 @@ export default abstract class SiteCreator {
 		await launchBrowser(this.userId);
 
 		pages[this.userId].on("dialog", async (dialog: Dialog) => {
-			Logger.info(`Dialog appeared with message: ${dialog.message()}`);
-			Logger.info("Accepting dialog");
+			console.log(`Dialog appeared with message: ${dialog.message()}`);
+			console.log("Accepting dialog");
 			await dialog.accept();
 		});
-		browsers[this.userId].on("targetCreated", async () => {
-			pageses[this.userId] = await browsers[this.userId].pages(); 
-			Logger.info("A new tab or window was created.");
-			Logger.info(`There are ${pageses[this.userId].length} page(s)`);
-		});
+		
 		await this.helper.checkTabs();
 		const site = this.createSite(this.userId);
 		await site.goToJobsPage();
@@ -72,9 +68,8 @@ export default abstract class SiteCreator {
 	}
 
 	async stop() {
-		Logger.info("Stopping applier 2");
-		await browsers[this.userId].close();
-		await killDriverProcess();
+		await browsers[this.userId]?.close();
+		// await killDriverProcess();
 	}
 
 	pause() {

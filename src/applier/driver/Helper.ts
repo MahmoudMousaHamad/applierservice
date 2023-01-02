@@ -38,12 +38,12 @@ export class Helper {
 	}
 
 	async checkTabs() {
-		pageses[this.userId] = await browsers[this.userId].pages();
-		Logger.info(`There are ${pageses[this.userId].length} tabs open.`);
-		if (pageses[this.userId].length > 1) {
-			Logger.info("Closing tab " + await pageses[this.userId][0].title());
-			await pageses[this.userId][0].close();
-			pages[this.userId] = pageses[this.userId][1];
+		const p = await browsers[this.userId].pages();
+		Logger.info(`There are ${p.length} tabs open.`);
+		if (p.length > 1) {
+			Logger.info("Closing tab " + await p[0].title());
+			await p[0].close();
+			pages[this.userId] = p[1];
 		}
 	}
 

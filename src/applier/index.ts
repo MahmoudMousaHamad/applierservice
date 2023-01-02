@@ -8,12 +8,10 @@ import { Logger, UserData } from "./lib";
 
 declare global {
     var browsers: { [userId: string]: Browser };
-    var pageses: { [userId: string]: Page[] };
     var pages: { [userId: string]: Page };
 }
 
 globalThis.browsers = {};
-globalThis.pageses = {};
 globalThis.pages = {};
 
 class Applier {
@@ -49,11 +47,11 @@ class Applier {
         }
     }
 
-    async stop(res?: Response) {
+    async stop(res: Response) {
         if (this.getStatus() === Status.RUNNING || this.getStatus() == Status.PAUSED) {
             await this.site.stop();
-            await killDriverProcess();
-            res?.status(200).json({
+            // await killDriverProcess();
+            res.status(200).json({
                 answers: JSON.stringify(SingletonCategorizer.categorizer),
                 status: this.getStatus(),
             });

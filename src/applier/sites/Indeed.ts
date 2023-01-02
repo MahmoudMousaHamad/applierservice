@@ -101,7 +101,7 @@ export class IndeedSite extends Site {
 		// 	const frameContent = await googleFrame?.contentFrame() as Frame;
 		// 	const continueAs = await frameContent.$("//div[contains(text(), 'Continue as')]/..");
 		// 	await continueAs?.click();
-		// 	Helper.sleep(2000);
+		// 	this.helper.sleep(2000);
 		// 	return true;
 		// }
 	    const [button] = await pages[this.userId].$x("//a[contains(text(),'Sign in')]") as ElementHandle[];
@@ -111,8 +111,9 @@ export class IndeedSite extends Site {
 		if (!googleBtn) throw Error("Google button was not found");
 		await googleBtn.click();
 		await this.helper.sleep(2000);
-		if (pageses[this.userId].length > 1) {
-			const googlePage = pageses[this.userId][pageses[this.userId].length - 1];
+		const p = await browsers[this.userId].pages();
+		if (p.length > 1) {
+			const googlePage = p[p.length - 1];
 			await googlePage.type("input[type='email']", "mahmoudmousahamad\n", {delay: 20});
 			await this.helper.sleep(1000);
 			await googlePage.type("input[type='password']", "5337301Mh!\n", {delay: 20});
