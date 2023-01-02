@@ -5,15 +5,15 @@ let config: { serverEndpoint: string, PORT: number };
 switch (NODE_ENV) {
     case 'production':
         config = {
-            serverEndpoint: 'http://167.172.133.156/',
-            PORT: 3000,
+            serverEndpoint: 'http://useapplier.com/',
+            PORT: 3001,
         }
         break;
 
     case 'staging':
         config = {
-            serverEndpoint: 'http://167.172.133.156/',
-            PORT: 3000,
+            serverEndpoint: 'http://useapplier.com/',
+            PORT: 3001,
         }
         break;
 
