@@ -104,6 +104,7 @@ export class IndeedSite extends Site {
 		// 	this.helper.sleep(2000);
 		// 	return true;
 		// }
+		await this.helper.sleep(2000);
 	    const [button] = await pages[this.userId].$x("//a[contains(text(),'Sign in')]") as ElementHandle[];
 		if (!button) console.log(await pages[this.userId].content());
 		await button.click();
