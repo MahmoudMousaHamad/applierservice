@@ -105,6 +105,7 @@ export class IndeedSite extends Site {
 		// 	return true;
 		// }
 	    const [button] = await pages[this.userId].$x("//a[contains(text(),'Sign in')]") as ElementHandle[];
+		if (!button) console.log(await pages[this.userId].content());
 		await button.click();
 		await this.helper.sleep(1000);
 	    const [googleBtn] = await pages[this.userId].$$("#login-google-button") as ElementHandle[];
@@ -115,7 +116,7 @@ export class IndeedSite extends Site {
 		if (p.length > 1) {
 			const googlePage = p[p.length - 1];
 			await googlePage.type("input[type='email']", "mahmoudmousahamad\n", {delay: 20});
-			await this.helper.sleep(1000);
+			await this.helper.sleep(2000);
 			await googlePage.type("input[type='password']", "5337301Mh!\n", {delay: 20});
 		}
 		return true;
