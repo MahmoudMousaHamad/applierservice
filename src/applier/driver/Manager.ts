@@ -146,7 +146,8 @@ export async function launchBrowser(userId: string): Promise<void> {
 			"--window-size=1200,800",
 			"--no-sandbox",
 		],
-		userDataDir: path.join(process.env.MNT_PATH || "/tmp/", userId),
+		userDataDir: path.join(process.env.MNT_PATH || "./tmp/", userId),
+		slowMo: 1000,
 		// headless: false,
     });
 	
